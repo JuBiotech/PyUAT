@@ -1,0 +1,102 @@
+# This file is a template, and might need editing before it works on your project.
+# To contribute improvements to CI/CD templates, please follow the Development guide at:
+# https://docs.gitlab.com/ee/development/cicd/templates.html
+# This specific template is located at:
+# https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Python.gitlab-ci.yml
+
+# Official language image. Look for the different tagged releases at:
+# https://hub.docker.com/r/library/python/tags/
+image: python:3.8
+
+# Change pip's cache directory to be inside the project directory since we can
+# only cache local items.
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+stages:
+  - build
+  - test
+  - deploy
+
+test:
+  image: continuumio/miniconda3
+  stage: test
+  script:
+    - conda install -y python=3.8 gcc
+    - pip install --upgrade pip
+    - pip install .
+    - pip install tox flake8  # you can also use tox
+    - tox -e py38,flake8
+  coverage: '/TOTAL.*\s+(\d+%)/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+      junit: report.xml
+
+installation:
+  image: continuumio/miniconda3
+  tags:
+    - big-ram
+  stage: build
+  script:
+    - conda env create -f conda.yaml
+    - conda run -n uat pip install -e .
+    - conda run -n uat python -c "import uat"
+
+run:
+  stage: build
+  script:
+    - python setup.py bdist_wheel
+    # an alternative approach is to install and run:
+    - pip install dist/*
+    # run the command here
+  artifacts:
+    paths:
+      - dist/*.whl
+
+.deploy_common:
+  # common config
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+
+upload_package:
+  stage: deploy
+  # dot pass artifacts from other stages
+  dependencies: []
+  cache: []
+  extends: .deploy_common
+  script:
+    - set -e
+    - pip install twine bump2version
+    - git config --global user.email "${GITLAB_USER_EMAIL}"
+    - git config --global user.name "${GITLAB_USER_NAME}"
+    - git log
+    # list tags
+    - git tag
+    - bump2version patch
+    - python setup.py sdist bdist_wheel
+    - ls -all dist/
+    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
+    - git remote set-url origin "https://${CI_PUSH_NAME}:${CI_PUSH_TOKEN}@jugit.fz-juelich.de/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}.git"
+    - git push -o ci.skip --tags origin HEAD:${CI_COMMIT_REF_NAME}
+  artifacts:
+    paths:
+      - dist/
+
+
+
+pages:
+  stage: deploy
+  extends: .deploy_common
+  script:
+    - pip install sphinx sphinx-rtd-theme pint
+    - cd docs ; make html
+    - mv _build/html/ ../public/
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
