@@ -551,6 +551,7 @@ def simpleTracking(
     max_num_hypotheses=int(1e3),
     cutOff=np.log(1e-3),
     max_num_solutions=50,
+    saving_interval=500,
 ):
     """
     df: data frame containing all cell information
@@ -587,8 +588,8 @@ def simpleTracking(
 
     try:
         # loop over consecutive frames
-        for source_frame, target_frame in tqdm.tqdm(
-            zip(frames, frames[1:]), total=len(frames) - 1
+        for frame_index, (source_frame, target_frame) in enumerate(
+            tqdm.tqdm(zip(frames, frames[1:]), total=len(frames) - 1)
         ):
             print("frames", source_frame, target_frame)
 
@@ -657,6 +658,10 @@ def simpleTracking(
 
             for r in reporters:
                 r.report_distribution(current_cluster_dist)
+
+            if frame_index % saving_interval == 0 and frame_index > 0:
+                for r in reporters:
+                    r.close()
 
     finally:
 
