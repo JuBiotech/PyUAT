@@ -35,16 +35,6 @@ test:
         path: coverage.xml
       junit: report.xml
 
-installation:
-  image: continuumio/miniconda3
-  tags:
-    - big-ram
-  stage: build
-  script:
-    - conda env create -f conda.yaml
-    - conda run -n uat pip install -e .
-    - conda run -n uat python -c "import uat"
-
 run:
   stage: build
   script:
@@ -52,6 +42,7 @@ run:
     # an alternative approach is to install and run:
     - pip install dist/*
     # run the command here
+    - python -c "import uat"
   artifacts:
     paths:
       - dist/*.whl
