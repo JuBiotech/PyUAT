@@ -22,11 +22,11 @@ test:
   image: continuumio/miniconda3
   stage: test
   script:
-    - conda install -y python=3.9 gcc
+    - conda install -y python=3.9
     - pip install --upgrade pip
     - pip install .
     - pip install tox flake8  # you can also use tox
-    - tox -e py38,flake8
+    - tox -e py39,flake8
   coverage: '/TOTAL.*\s+(\d+%)/'
   artifacts:
     reports:
