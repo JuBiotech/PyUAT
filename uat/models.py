@@ -1,7 +1,7 @@
 """Functionality for extracting information and scoring it according to probabilistic models"""
 
 import numpy as np
-from tensor_tree import NP_Impl
+from tensor_tree.impl_np import NP_Impl
 
 backend = NP_Impl()
 
