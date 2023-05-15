@@ -6,7 +6,7 @@
 
 # Official language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/library/python/tags/
-image: python:3.8
+image: python:3.9
 
 # Change pip's cache directory to be inside the project directory since we can
 # only cache local items.
@@ -22,7 +22,7 @@ test:
   image: continuumio/miniconda3
   stage: test
   script:
-    - conda install -y python=3.8 gcc
+    - conda install -y python=3.9 gcc
     - pip install --upgrade pip
     - pip install .
     - pip install tox flake8  # you can also use tox
