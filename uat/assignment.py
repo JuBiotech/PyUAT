@@ -112,7 +112,7 @@ class SimpleNewAssGenerator(SimpleAssignmentGenerator):
             target_index,
             summed_scores,
             individual_scores,
-        )  # np.ones((source_index.shape[0])) * -7
+        )
 
 
 class SimpleEndTrackAssGenerator(SimpleAssignmentGenerator):
@@ -121,24 +121,25 @@ class SimpleEndTrackAssGenerator(SimpleAssignmentGenerator):
     """
 
     def generate(self, tracking, sources, targets) -> tuple:
-        # for new detections the source is -1
+        # for dissappearing cells copy the sources
         source_index = np.zeros((len(sources), 1), dtype=np.int32)
-        source_index[:, 0] = sources.index
+        source_index[:, 0] = sources
 
-        # the target indices are simple the targets but with 2 dimensions
+        # the target index has dim=0 (no connections)
         target_index = np.zeros((len(sources), 0), dtype=np.int32)
-        # target_index[:,0] = targets.index
 
+        # compute the scores
         summed_scores, individual_scores = self.compute_scores(
             tracking, source_index, target_index
         )
 
+        # return all variables
         return (
             source_index,
             target_index,
             summed_scores,
             individual_scores,
-        )  # np.ones((source_index.shape[0])) * -7
+        )
 
 
 class SimpleContinueGenerator(SimpleAssignmentGenerator):
