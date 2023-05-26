@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+from typing import Any
 
 import numpy as np
 
@@ -59,7 +60,29 @@ class SimpleAssignmentGenerator:
     def generate(self, tracking, sources, targets):
         raise NotImplementedError()
 
-    def compute_scores(self, tracking, source_index, target_index):
+    def compute_scores(
+        self,
+        tracking: np.ndarray[Any, np.uint32],
+        source_index: np.ndarray[(Any, 1), np.uint32],
+        target_index: np.ndarray[(Any, Any), np.uint32],
+    ) -> tuple[np.float32, np.ndarray[(Any, Any), np.float32]]:
+        """Compute the scores for all assignments
+
+        Args:
+            tracking (np.ndarray[Any, np.uint32]): index based tracking representation
+            source_index (np.ndarray[(Any, 1), np.uint32]) : sources for the assignemnts
+            target_index (np.ndarray[(Any, Any), np.uint32]): targets for the assignment
+
+        Raises:
+            ValueError: we need models for scoring
+
+        Returns:
+            _type_: sum of scores and a list of individual scores
+        """
+
+        if len(self.models) <= 0:
+            raise ValueError("You need at least one model for scoring assignments")
+
         scores = np.array(
             [m(tracking, source_index, target_index) for m in self.models]
         )
@@ -78,7 +101,7 @@ class SimpleNewAssGenerator(SimpleAssignmentGenerator):
 
         # the target indices are simple the targets but with 2 dimensions
         target_index = np.zeros((len(targets), 1), dtype=np.int32)
-        target_index[:, 0] = targets.index
+        target_index[:, 0] = targets
 
         summed_scores, individual_scores = self.compute_scores(
             tracking, source_index, target_index

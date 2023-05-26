@@ -11,7 +11,7 @@ class Probability:
     def __init__(self, probability=None, log_prob=None):
         assert probability is None or log_prob is None
 
-        if not probability is None:
+        if probability is not None:
             assert np.all(probability > 0)
             self.logProb = np.log(probability)
         else:

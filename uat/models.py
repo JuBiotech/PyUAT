@@ -40,9 +40,9 @@ class ModelExecutor:
         return values
 
 
-#############################
-#### Quantity extractors ####
-#############################
+# ---------------------------
+# --- Quantity extractors ---
+# ---------------------------
 
 
 def area_growth_computer(tracking, source_index, target_index, df):

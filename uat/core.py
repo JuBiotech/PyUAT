@@ -584,7 +584,7 @@ def simpleTracking(
         )
     ]
     next_tracking_id = 1
-    all_clusters = [current_cluster_dist]
+    # all_clusters = [current_cluster_dist]
 
     try:
         # loop over consecutive frames
@@ -654,7 +654,7 @@ def simpleTracking(
             for i, c in enumerate(current_cluster_dist):
                 c.tracking.id = i
 
-            all_clusters += [current_cluster_dist]
+            # all_clusters += [current_cluster_dist]
 
             for r in reporters:
                 r.report_distribution(current_cluster_dist)
@@ -668,7 +668,7 @@ def simpleTracking(
         for r in reporters:
             r.close()
 
-    return all_clusters
+    # return all_clusters
 
 
 def split_pair_filter(

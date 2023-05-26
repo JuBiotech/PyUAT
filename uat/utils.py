@@ -10,7 +10,9 @@ import tqdm
 from scipy.spatial.distance import cdist
 from tqdm.contrib.concurrent import process_map
 
-product = lambda list1: reduce((lambda x, y: x * y), list1)
+
+def product(list1):
+    return reduce((lambda x, y: x * y), list1)
 
 
 def distance(point_a, point_b):
@@ -99,7 +101,7 @@ class DistanceComputer:
 
     def distance(self, det1, det2):
         key = tuple(sorted([det1.id, det2.id]))
-        if not key in self._distance_lookup:
+        if key not in self._distance_lookup:
             self._distance_lookup[key] = det1.polygon.distance(det2.polygon)
         return self._distance_lookup[key]
 
