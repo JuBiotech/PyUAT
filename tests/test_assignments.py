@@ -29,7 +29,9 @@ class TestAssignmentGenerators(unittest.TestCase):
 
         ass_gen = SimpleNewAssGenerator(models)
 
-        ass_gen.generate(None, None, targets)
+        assignments = ass_gen.generate(None, None, targets)
+
+        self.assertEqual(len(assignments[0]), 10)
 
 
 if __name__ == "__main__":
