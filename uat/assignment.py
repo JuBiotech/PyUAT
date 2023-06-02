@@ -155,6 +155,7 @@ class SimpleContinueGenerator(SimpleAssignmentGenerator):
 
     def generate(self, tracking, sources, targets):
         if len(sources) == 0:
+            # the case for no sources (e.g. start of the tracking): no continue assignments
             return (
                 np.zeros((0, 0), dtype=np.uint32),
                 np.zeros((0, 0), dtype=np.uint32),
