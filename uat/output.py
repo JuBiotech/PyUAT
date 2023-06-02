@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import time
 from pathlib import Path
@@ -62,8 +63,8 @@ class SimpleTrackingReporter:
             format_version="0.0.1",
         )
 
-        with open(
-            Path(self.output_folder) / "tracking.json", "w", encoding="utf-8"
+        with gzip.open(
+            Path(self.output_folder) / "tracking.json.gz", "wb"
         ) as output_file:
             json.dump(data_structure, output_file)
         print(self.final_cluster.tracking.createIndexTracking().edges)
