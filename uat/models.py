@@ -79,7 +79,7 @@ def distance_to_pred_computer(
     stop_at_split=True,
 ):
     """
-    Predict the movement of a cell based on its past movements (in history timesteps).
+    Predict the movement of a cell based on its past movements (in history timesteps). If no history is available assume no movement.
 
     Returns the distance between the prediction and the true positions
 
@@ -128,6 +128,29 @@ def distance_to_pred_computer(
 
     # return the distances
     return assignment_distances
+
+
+def distance_to_pred_masked(tracking, source_index, target_index, df, num_steps=3):
+    walks = backend.compute_walks_upward(
+        tracking.parents,
+        source_index.reshape(-1),
+        num_steps=num_steps,
+        stop_at_split=True,
+    )
+
+    all_positions = df["centroid"]
+
+    avg_movement = backend.compute_avg_property_along_walk(walks, all_positions)
+
+    pred_position = all_positions[source_index.reshape(-1)] + avg_movement
+
+    target_position = all_positions[target_index.reshape(-1)]
+
+    pred_distance = np.abs(np.linalg.norm(pred_position - target_position, axis=1))
+
+    invalid = np.any(pred_position.mask)
+
+    return np.ma.array(pred_distance, invalid)
 
 
 def compute_dist_to_last_split(tracking, walk_matrix, no_split_behavior="mask"):
