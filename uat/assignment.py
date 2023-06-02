@@ -3,43 +3,43 @@
 from __future__ import annotations
 
 import itertools
+import logging
 from typing import Any
 
 import numpy as np
 
 
-def filterIndexLists(source_index, target_index, filters):
-    """
-    That is for candidate filtering
+def filter_targets(source_index, target_index, filters):
+    """Filter targets
 
-    source_index
-    target_index: index array SxT, where S is the number of possible sources and T is the number of possible targets
+    Args:
+        source_index (_type_): index array for the sources
+        target_index (_type_): index array of SxT (source, filtered candidates)
+        filters (_type_): filter functions returning boolean arrays for (source_index, target_index)
+
+    Returns:
+        tuple: [source_index, filtered target_index]
     """
+
     num_sources = len(source_index)
     num_targets = target_index.shape[1]
 
-    # todo apply nearest neighbor filter here
     if len(filters) == 0:
+        # no filters at all
         combined_mask = np.ones((num_sources, num_targets), dtype=np.bool)
-        # combined_mask[:,0] = False
     else:
+        # apply all filters to the source, index combinations
         stacked_masks = np.array([f(source_index, target_index) for f in filters])
-        # print('stacke mask', stacked_masks.shape)
-        # print(stacked_masks.dtype)
+        # only when all filters aggree use the
         combined_mask = np.all(stacked_masks, axis=0)
-        # print('comb mask', combined_mask.shape)
 
-    # source_index_new = np.repeat(source_index, (num_targets,)).reshape(num_sources * num_targets, -1)[combined_mask.flatten()].reshape((-1, 1))
-    # print(target_index)
-    # print(combined_mask)
-    # print(combined_mask.dtype)
-    # print('target_index', target_index.shape)
+    # pylint: disable=singleton-comparison
+    if np.all(combined_mask == False):
+        logging.warning("Filtered all away!")
+
+    # just keep the valid (source, target) combinations
     mask_array = np.ma.masked_array(target_index, mask=~combined_mask)
-    # print(mask_array)
     target_index_new = mask_array.compressed().reshape((num_sources, -1))
-
-    # print(target_index_new.shape)
-    # print(target_index_new)
 
     return source_index, target_index_new
 
@@ -162,10 +162,12 @@ class SimpleContinueGenerator(SimpleAssignmentGenerator):
                 np.array([], dtype=np.float32),
             )
 
-        source_index = sources.index.to_numpy()
-        target_index = np.tile(targets.index.to_numpy(), (len(sources), 1))
+        # setup index lists
+        source_index = sources
+        # targets are TxSx1
+        target_index = np.tile(targets, (len(sources), 1))
 
-        source_index, target_index = filterIndexLists(
+        source_index, target_index = filter_targets(
             source_index, target_index, self.candidate_filters
         )
 
@@ -202,12 +204,12 @@ class SimpleSplitGenerator(SimpleAssignmentGenerator):
                 np.array([], dtype=np.float32),
             )
 
-        source_index = sources.index.to_numpy()
+        source_index = sources
         # create target matrix
-        target_index = np.tile(np.array(targets.index), (len(sources), 1))
+        target_index = np.tile(np.array(targets), (len(sources), 1))
 
         # apply filters for target indices
-        source_index, target_index = filterIndexLists(
+        source_index, target_index = filter_targets(
             source_index, target_index, self.candidate_filters
         )
 
@@ -215,9 +217,7 @@ class SimpleSplitGenerator(SimpleAssignmentGenerator):
             [list(itertools.combinations(targets, 2)) for targets in target_index]
         )
 
-        source_index = np.repeat(
-            sources.index.to_numpy(), (combinations.shape[1],)
-        ).reshape((-1, 1))
+        source_index = np.repeat(sources, (combinations.shape[1],)).reshape((-1, 1))
         target_index = combinations.reshape((-1, 2))
 
         # filter lists to only appropriate assignments
