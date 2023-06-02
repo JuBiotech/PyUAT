@@ -1,4 +1,5 @@
 """ Example for performing the tracking analysis in parallel for multiple sequences and uploading the results"""
+from multiprocessing import Pool
 from pathlib import Path
 
 from acia.segm.omero.utils import list_image_ids_in
@@ -31,7 +32,13 @@ with BlitzGateway(**omero_cred) as conn:
 ## TODO: give an overview about the data
 print(image_ids)
 
-for image_id in image_ids:
+
+def track_function(image_id: int):
     output_folder = Path("tracking_output") / f"{image_id}"
 
     main(omero_id=image_id, output_folder=output_folder)
+
+
+with Pool(4) as pool:
+
+    pool.map(track_function, image_ids)
