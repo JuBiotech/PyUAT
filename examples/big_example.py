@@ -35,49 +35,6 @@ gp.setParam(GRB.Param.LogToConsole, 0)
 gp.setParam(GRB.Param.TimeLimit, 300)
 
 
-def compute_errors(sol_tracking_graph: DiGraph, pred_tracking_graph: DiGraph):
-    """Compares a solution tracking graph with a predicted tracking graph and prints some error measures
-
-    Args:
-        sol_tracking_graph (DiGraph): solution tracking graph (with detection ids as nodes)
-        pred_tracking_graph (DiGraph): predicted tracking graph (with detection ids as nodes)
-    """
-
-    # first only use the solution nodes also present in the prediction
-    sol_tracking_graph = sol_tracking_graph.subgraph(pred_tracking_graph.nodes)
-
-    # choose short names
-    stg = sol_tracking_graph
-    ptg = pred_tracking_graph
-
-    # make sure that the node sets are the same
-    assert (
-        stg.number_of_nodes() == ptg.number_of_nodes()
-    ), f"You are comparing tracking solution and prediction with different detection sets! sol nodes={stg.number_of_nodes()} vs. pred nodes={ptg.number_of_nodes()}"
-
-    # get edge sets
-    sol_edge_set = set(stg.edges)
-    pred_edge_set = set(ptg.edges)
-
-    # Compute metrics
-
-    intersect = sol_edge_set.intersection(pred_edge_set)
-
-    print(f"Num edges in solution: {len(sol_edge_set)}")
-    print(f"Num edges in prediction: {len(pred_edge_set)}")
-    print(f"Num edges in intersect: {len(intersect)}")
-
-    TP = len(intersect)
-    FP = len(pred_edge_set - sol_edge_set)
-    FN = len(sol_edge_set - pred_edge_set)
-
-    print(f"Num TP: {TP}")
-    print(f"Num FP: {FP}")
-    print(f"Num FN: {FN}")
-
-    print(f"False positives: {pred_edge_set - sol_edge_set}")
-
-
 def main(output_folder=Path("tracking_output"), omero_id=18001):
 
     output_folder.mkdir(exist_ok=True, parents=True)
