@@ -23,7 +23,7 @@ def render_tracking_video(
     all_contours = list(full_overlay)
     contour_lookup = {cont.id: cont for cont in all_contours}
 
-    with VideoExporter(output_file, framerate, codec) as ve:
+    with VideoExporter(str(output_file), framerate, codec) as ve:
         for frame, (image, overlay) in enumerate(
             tqdm(zip(image_source, full_overlay.timeIterator()))
         ):
