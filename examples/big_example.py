@@ -149,7 +149,9 @@ def main(output_folder=Path("tracking_output"), omero_id=18001):
 
     # render the tracking video
     oss = OmeroSequenceSource(omero_id, username, password, host, port)
-    render_tracking_video(oss, ov, tracking, output_file=output_folder / "tracking.avi")
+    render_tracking_video(
+        oss, ov, tracking, output_file=output_folder / "tracking.mp4", codec="vp09"
+    )
 
     # TODO: upload complete tracking
 
