@@ -55,9 +55,10 @@ def main(output_folder=Path("tracking_output"), omero_id=18001):
 
         width = image.getSizeX()
         # height = image.getSizeY()
+        end_frame = image.getSizeT() - 1
 
     start_frame = 0
-    end_frame = 30  # 1600 #1599 #2564
+    # end_frame = 30  # 1600 #1599 #2564
 
     # width, height = (997, 1050)
 
