@@ -10,6 +10,7 @@ from functools import reduce
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import ray
 import tqdm
 from networkx import DiGraph
@@ -163,7 +164,11 @@ def simpleExpansionRay(
 
 @ray.remote
 def singleSolutionRay(
-    cluster: SimpleCluster, sources, targets, assignment_generators: list, index=int
+    cluster: SimpleCluster,
+    sources: npt.ArrayLike[np.uint32],
+    targets: npt.ArrayLike[np.uint32],
+    assignment_generators: list,
+    index=int,
 ):
     return index, singleSolution(cluster, sources, targets, assignment_generators)
 
@@ -200,7 +205,7 @@ def buildMIPProblem(all_assignments, cutOff=None):
     cutOff: log value of solution search cutOff
     """
     # build MIP solver
-    solver = SimpleMIPSolver(all_assignments)
+    solver = SimpleMIPSolver(all_assignments, solver_name="GRB")
 
     if cutOff:
         solver.setCutOff(cutOff)
@@ -594,8 +599,10 @@ def simpleTracking(
             print("frames", source_frame, target_frame)
 
             # find source and target detections
-            sources = df[df["frame"] == source_frame]  # TODO find only trackends
-            targets = df[df["frame"] == target_frame]
+            sources = df[df["frame"] == source_frame].index.to_numpy(
+                dtype=np.int32
+            )  # TODO find only trackends
+            targets = df[df["frame"] == target_frame].index.to_numpy(dtype=np.int32)
 
             print(f"trackEnds {len(sources)} --> {(len(targets))} detections")
 
@@ -668,7 +675,7 @@ def simpleTracking(
         for r in reporters:
             r.close()
 
-    # return all_clusters
+    return current_cluster_dist
 
 
 def split_pair_filter(
