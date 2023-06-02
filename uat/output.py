@@ -64,7 +64,7 @@ class SimpleTrackingReporter:
         )
 
         with gzip.open(
-            Path(self.output_folder) / "tracking.json.gz", "wb"
+            Path(self.output_folder) / "tracking.json.gz", "wt"
         ) as output_file:
             json.dump(data_structure, output_file)
         print(self.final_cluster.tracking.createIndexTracking().edges)
