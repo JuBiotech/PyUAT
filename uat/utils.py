@@ -265,7 +265,7 @@ class NearestNeighborCache:
     def kNearestNeigborsMatrixMask(self, k: int, sourceIndices, targetIndexMatrix):
         if targetIndexMatrix.shape[1] <= k:
             # if we have lesseq than k detections finding k-nearest neighbors is trivial
-            mask = np.ones_like(targetIndexMatrix, dtype=np.bool)
+            mask = np.ones_like(targetIndexMatrix, dtype=bool)
 
         else:
             correctIndices = self.kNearestNeigbors(k, sourceIndices, targetIndexMatrix)

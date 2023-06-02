@@ -13,3 +13,4 @@ disable =
     W0212, # protected member access is okay
     W0511, # fixmes okay
     W0622, # redefining builtin is okay
+    R0801, # code-duplicity: could not be solved for solvers

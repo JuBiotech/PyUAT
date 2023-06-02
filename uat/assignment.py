@@ -26,7 +26,7 @@ def filter_targets(source_index, target_index, filters):
 
     if len(filters) == 0:
         # no filters at all
-        combined_mask = np.ones((num_sources, num_targets), dtype=np.bool)
+        combined_mask = np.ones((num_sources, num_targets), dtype=bool)
     else:
         # apply all filters to the source, index combinations
         stacked_masks = np.array([f(source_index, target_index) for f in filters])
