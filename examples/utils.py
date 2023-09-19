@@ -1,5 +1,8 @@
 """ Utilities for the tracking """
 
+from functools import reduce
+from itertools import tee
+
 import cv2
 import numpy as np
 from acia.base import Overlay
@@ -13,19 +16,23 @@ from uat.core import SimpleCluster
 
 def render_tracking_video(
     image_source,
-    full_overlay,
+    overlay_iterator,
     tracking,
     output_file="track.avi",
     framerate=3,
     codec="MJPG",
 ):
-
-    all_contours = list(full_overlay)
+    overlay_iterator, consumer = tee(overlay_iterator)
+    all_contours = reduce(
+        lambda a, b: a + b,
+        [[cont for overlay in iter(consumer) for cont in overlay]],
+        [],
+    )
     contour_lookup = {cont.id: cont for cont in all_contours}
 
     with VideoExporter(str(output_file), framerate, codec) as ve:
         for frame, (image, overlay) in enumerate(
-            tqdm(zip(image_source, full_overlay.timeIterator()))
+            tqdm(zip(image_source, overlay_iterator))
         ):
             pil_image = Image.fromarray(image.raw)
             overlay.draw(pil_image, "#00FFFF", None)
@@ -145,3 +152,42 @@ def compute_errors(sol_tracking_graph: DiGraph, pred_tracking_graph: DiGraph):
     print(f"Num FN: {FN}")
 
     print(f"False positives: {pred_edge_set - sol_edge_set}")
+
+
+def compute_axes_info(det):
+    """Extract information about the major and minor axes from a single detection
+
+    Args:
+        det (_type_): detection object
+
+    Returns:
+        _type_: a lot of information about major and minor axes
+    """
+    # get the minimum rotated rectangle around a detection
+    mrr = det.polygon.minimum_rotated_rectangle
+    coordinates = np.array(mrr.boundary.coords)
+
+    # substract all coordinates to get the distances
+    diff_vectors = coordinates[:-1] - coordinates[1:]
+    distances = np.linalg.norm(diff_vectors, axis=1)
+
+    # minor axis has lower distance than major axis
+    minor_index = np.argmin(distances)
+    major_index = np.argmax(distances)
+
+    # compute width and length (minor axis, major axis)
+    width = distances[minor_index]
+    length = distances[major_index]
+
+    # extract minor and major axis
+    minor_axis = diff_vectors[minor_index]
+    major_axis = diff_vectors[major_index]
+
+    center = np.array(mrr.centroid.coords)[0]
+
+    # construct axis endpoints (extents)
+    major_extents = center + 0.5 * np.array([major_axis, -major_axis])
+    minor_extents = center + 0.5 * np.array([minor_axis, -minor_axis])
+
+    # return all extracted values
+    return width, length, major_axis, minor_axis, major_extents, minor_extents

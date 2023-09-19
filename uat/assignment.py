@@ -227,6 +227,17 @@ class SimpleSplitGenerator(SimpleAssignmentGenerator):
         source_index = source_index[mask]
         target_index = target_index[mask]
 
+        # check whether we still have opportunities
+        if len(source_index) == 0 or len(target_index) == 0:
+            # we have no split opportunities
+            print("no splits available!")
+            return (
+                np.zeros((0, 0), dtype=np.uint32),
+                np.zeros((0, 0), dtype=np.uint32),
+                np.array([], dtype=np.float32),
+                np.array([], dtype=np.float32),
+            )
+
         # print(source_index, target_index)
         assert source_index.shape[0] == target_index.shape[0]
         assert source_index.shape[1] == 1

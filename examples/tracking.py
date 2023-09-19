@@ -26,7 +26,7 @@ from gurobipy import GRB
 from networkx import DiGraph
 from omero.gateway import BlitzGateway
 from pandas import DataFrame
-from utils import cluster_to_tracking_graph, render_tracking_video
+from utils import cluster_to_tracking_graph, compute_axes_info, render_tracking_video
 
 from uat.core import simpleTracking
 from uat.output import SimpleTrackingReporter
@@ -93,7 +93,7 @@ def load_omero_data(output_folder, omero_id, subsampling_factor=40):
 def load_local_data(simple_seg_file):
     print("Loading segmentation...")
     # Load segmentation or additional tracking information
-    with open(simple_seg_file, encoding="utf-8") as input_file:
+    with open(simple_seg_file, encoding="UTF-8") as input_file:
         ov = parse_simple_segmentation(input_file.read())
 
     return ov
@@ -103,10 +103,11 @@ def main(input_file, output_folder):
 
     # all_detections, width, ov = load_local_data(output_folder/ "pred_simpleSegmentation.json.gz", width=997, subsampling_factor=40) #load_omero_data(output_folder, omero_id)
     ov = load_local_data(input_file)
+    # ov = Overlay([cont for cont in ov if cont.frame <= 100])
     all_detections = ov.contours
 
     # TODO: hardcoded
-    width = 938
+    width = 434
 
     # split_proposals, major_axes = compute_split_proposals(all_detections)
 
@@ -118,8 +119,20 @@ def main(input_file, output_folder):
     max_num_solutions = 1  # args.sol_pool_size
 
     # create the main data frame
-    df = DataFrame(
-        [
+    entries = []
+    for _, det in enumerate(all_detections):
+        # compute the axis info
+        (
+            width,
+            length,
+            major_axis,
+            minor_axis,
+            major_extents,
+            minor_extents,
+        ) = compute_axes_info(det)
+
+        # add entry for this cell
+        entries.append(
             {
                 "area": det.area,
                 "centroid": np.array(det.center),
@@ -127,15 +140,22 @@ def main(input_file, output_folder):
                 "id": det.id,
                 "frame": det.frame,
                 "contour": np.array(det.coordinates),
+                "width": width,
+                "length": length,
+                "major_axis": major_axis,
+                "minor_axis": minor_axis,
+                "major_extents": major_extents,
+                "minor_extents": minor_extents,
             }
-            for i, det in enumerate(all_detections)
-        ]
-    )
+        )
+    df = DataFrame(entries)
+    print(df)
 
     # put data into numpy arrays (greatly increases the speed, as data can be immediately indexed)
     data = {
         "area": np.array(df["area"].to_list(), dtype=np.float32),
         "centroid": np.array(df["centroid"].to_list(), dtype=np.float32),
+        "major_extents": np.array(df["major_extents"].to_list(), dtype=np.float32),
     }
 
     print(df)
@@ -178,7 +198,7 @@ if __name__ == "__main__":
         "-i",
         "--input_file",
         type=str,
-        default="examples/pred_simpleSegmentation_40.json",
+        default="examples/pred_simpleSegmentation.json",
     )
     parser.add_argument("-o", "--output_folder", type=str, default="tracking_output")
 
