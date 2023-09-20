@@ -119,14 +119,21 @@ def create_split_children_angle_model(
     return split_children_angle_model
 
 
-def create_split_rate_model(data):
+def create_split_rate_model(data, subsampling):
     def split_rate_comp(values):
-        probs = binom.logpmf(values + 1, n=40, p=10 / 40)
+        # probs = binom.logpmf(values + 1, n=40, p=10 / 40)
+        mean = 70 / subsampling
+        scale = 20 / subsampling
+
+        p = 1 - scale / mean
+        n = int(mean / p)
+
+        probs = np.log(binom.pmf(values + 1, n=n, p=p))
         indices = np.where(values == -1)
         probs[indices] = np.log(
             0.5
         )  # 50% split probability when we have no parents available
-        print(probs)
+        # print(probs)
         return probs
 
     # pylint: disable=unused-variable
@@ -258,14 +265,16 @@ def setup_assignment_generators(df, data, width, subsampling):
     split_movement_model = create_split_movement_model(data, max_distance)
 
     # pylint: disable=unused-variable
-    split_rate_model = create_split_rate_model(data)
+    split_rate_model = create_split_rate_model(data, subsampling)
 
     # create distance models for splits
     split_children_distance_model = create_split_children_distance_model(data)
     split_children_angle_model = create_split_children_angle_model(data)
 
     # create growth models
-    continue_growth_model = create_growth_model(data, mean=1.008**subsampling, scale=0.6)
+    continue_growth_model = create_growth_model(
+        data, mean=1.008**subsampling, scale=0.6
+    )
     split_growth_model = create_growth_model(data, mean=1.016**subsampling, scale=0.6)
 
     migration_models = [
@@ -277,8 +286,8 @@ def setup_assignment_generators(df, data, width, subsampling):
         split_movement_model,
         # split_rate_model,
         split_growth_model,
-        #split_children_distance_model,
-        #split_children_angle_model,
+        # split_children_distance_model,
+        # split_children_angle_model,
     ]  # , split_distance_ratio]
 
     assignment_generators = [
