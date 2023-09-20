@@ -18,6 +18,7 @@ from pandas import DataFrame
 
 from uat.sampling import sample_from_probabilities
 from uat.solve.mip import SimpleMIPSolver
+from uat.solve.gurobi import SimpleGurobiSolver
 
 from .sampling import Probability
 from .utils import ContourDistanceCache
@@ -204,8 +205,18 @@ def buildMIPProblem(all_assignments, cutOff=None):
     all_assignments: list of different types of assignments
     cutOff: log value of solution search cutOff
     """
+    solver_name = "GRB"
+
+    if solver_name == "GRB":
+        import gurobipy as gp
+        from gurobipy import GRB
+
+        # only use a single thread
+        gp.setParam(GRB.Param.Threads, 1)
+        gp.setParam(GRB.Param.OutputFlag, 0)
+
     # build MIP solver
-    solver = SimpleMIPSolver(all_assignments, solver_name="GRB")
+    solver = SimpleGurobiSolver(all_assignments) #SimpleMIPSolver(all_assignments, solver_name=solver_name)
 
     if cutOff:
         solver.setCutOff(cutOff)
