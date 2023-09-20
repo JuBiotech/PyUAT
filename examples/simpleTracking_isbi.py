@@ -6,13 +6,13 @@ import time
 from pathlib import Path
 
 import numpy as np
-from acia.segm.formats import parse_simple_segmentation
+from acia.tracking.formats import parse_simple_tracking
 from pandas import DataFrame
 
 from uat.core import simpleTracking
 from uat.output import SimpleTrackingReporter
 
-from .config import setup_assignment_generators
+from .isbi_config import setup_assignment_generators
 from .utils import compute_axes_info
 
 
@@ -24,7 +24,7 @@ def main(source_file, output_file, subsampling):
 
     ### load data
     with open(source_file, encoding="UTF-8") as input_file:
-        ov = parse_simple_segmentation(input_file.read())
+        ov, _ = parse_simple_tracking(input_file.read())
 
     ### load config
     ### perform tracking
@@ -85,7 +85,7 @@ def main(source_file, output_file, subsampling):
 
     print(df)
 
-    assignment_generators = setup_assignment_generators(df, data, width)
+    assignment_generators = setup_assignment_generators(df, data, width, subsampling)
 
     # create reporters
     reporters = [
@@ -115,10 +115,10 @@ def main(source_file, output_file, subsampling):
     ### export output
 
     with gzip.open(output_file.parent / "tracking.json.gz", "r") as input_file:
-        with open(output_file, "w", encoding="UTF-8") as out_f:
+        with open(output_file, "wb") as out_f:
             out_f.write(input_file.read())
 
 
 if __name__ == "__main__":
-    sf, of, sub = (sys.argv[2], sys.argv[3], sys.argv[4])
+    sf, of, sub = (sys.argv[1], sys.argv[2], sys.argv[3])
     main(sf, of, sub)
