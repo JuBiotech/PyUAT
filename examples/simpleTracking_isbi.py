@@ -15,8 +15,10 @@ from uat.output import SimpleTrackingReporter
 from .isbi_config import setup_assignment_generators
 from .utils import compute_axes_info
 
+import json
 
-def main(source_file, output_file, subsampling):
+
+def main(source_file, output_file, subsampling, config):
 
     source_file = Path(source_file)
     output_file = Path(output_file)
@@ -85,7 +87,10 @@ def main(source_file, output_file, subsampling):
 
     print(df)
 
-    assignment_generators = setup_assignment_generators(df, data, width, subsampling)
+    print("Config", config)
+    config = json.loads(config)
+
+    assignment_generators = setup_assignment_generators(df, data, width, subsampling, **config)
 
     # create reporters
     reporters = [
@@ -120,5 +125,5 @@ def main(source_file, output_file, subsampling):
 
 
 if __name__ == "__main__":
-    sf, of, sub = (sys.argv[1], sys.argv[2], sys.argv[3])
-    main(sf, of, sub)
+    sf, of, sub, config = (sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    main(sf, of, sub, config)

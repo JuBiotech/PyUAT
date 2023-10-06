@@ -188,18 +188,13 @@ def create_split_movement_model(data, max_distance):
         data,
     )
 
-
-def setup_assignment_generators(df, data, width, subsampling):
-    # TODO: Why these values?
-    constant_new_model = ConstantModel(np.log(0.25**2))
-    constant_end_model = ConstantModel(np.log(0.25**2))
-
+def create_end_pos_model(data, width):
     def position(tracking, source_index, target_index, df):
         # pylint: disable=unused-argument
         all_positions = df["centroid"]
 
         return all_positions[source_index.reshape(-1)]
-
+    
     def pos_log_pdf(values):
         values = values[:, 0]
         min_dist = np.minimum(values, width - values)
@@ -208,22 +203,33 @@ def setup_assignment_generators(df, data, width, subsampling):
         p[min_dist > 60] = -1  # -6 #np.log(1e-6)
 
         return p
+    
+    return ModelExecutor(position, pos_log_pdf, data)
 
-    end_pos_model = ModelExecutor(position, pos_log_pdf, data)
+class SimpleCDC:
+    """class to compute contour distances (approximated by center position in favor of speed)"""
 
-    class SimpleCDC:
-        """class to compute contour distances (approximated by center position in favor of speed)"""
+    def __init__(self, positions):
+        self.positions = positions
 
-        @staticmethod
-        def distance(indA, indB):
-            return np.linalg.norm(positions[indA] - positions[indB], axis=1)
+    def distance(self, indA, indB):
+        return np.linalg.norm(self.positions[indA] - self.positions[indB], axis=1)
 
-    cdc = SimpleCDC
+
+def setup_assignment_generators(df, data, width, subsampling, use_split_distance = False):
+    # TODO: Why these values?
+    constant_new_model = ConstantModel(np.log(0.5**2))
+    constant_end_model = ConstantModel(np.log(0.5**2))
+
+    end_pos_model = create_end_pos_model(data, width)
+
+    positions = data["centroid"]
+
+    cdc = SimpleCDC(positions)
 
     logging.info("Compute nearest neighbor cache")
     nnc = NearestNeighborCache(df)
 
-    positions = data["centroid"]
 
     filters = [lambda s, t: nnc.kNearestNeigborsMatrixMask(15, s, t)]
 
@@ -261,7 +267,7 @@ def setup_assignment_generators(df, data, width, subsampling):
     split_rate_model = create_split_rate_model(data)
 
     # create distance models for splits
-    split_children_distance_model = create_split_children_distance_model(data)
+    split_children_distance_model = create_split_children_distance_model(data, prob=lambda vs: halfnorm.logsf(vs, loc=0, scale=3*subsampling))
     split_children_angle_model = create_split_children_angle_model(data)
 
     # create growth models
@@ -281,9 +287,12 @@ def setup_assignment_generators(df, data, width, subsampling):
         #split_children_angle_model,
     ]  # , split_distance_ratio]
 
+    if use_split_distance:
+        split_models.append(split_children_distance_model)
+
     assignment_generators = [
         SimpleNewAssGenerator([constant_new_model]),
-        SimpleEndTrackAssGenerator([constant_end_model, end_pos_model]),
+        SimpleEndTrackAssGenerator([constant_end_model]), #, end_pos_model]),
         # SimpleContinueGenerator(filters, [continue_growth_model, continue_rate_model, continue_movement_model]),
         SimpleContinueGenerator(filters, migration_models),
         # SimpleSplitGenerator(filters, partial(split_pair_filter, cdc=cdc), [split_rate_model_simple, split_growth_model, split_sum_growth_model, split_movement_model, split_dist_prop_model]) #, split_dist_prop_model])]# split_prop_model # split_growth_model, split_min_dist_model, split_rate_model_simple, split_prop_model
