@@ -6,8 +6,8 @@ from functools import partial, reduce
 
 import numpy as np
 import ray
-import tqdm
 from scipy.spatial.distance import cdist
+from tqdm.auto import tqdm
 from tqdm.contrib.concurrent import process_map
 
 

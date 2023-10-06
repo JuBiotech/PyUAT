@@ -12,9 +12,9 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 import ray
-import tqdm
 from networkx import DiGraph
 from pandas import DataFrame
+from tqdm.auto import tqdm
 
 from uat.sampling import sample_from_probabilities
 from uat.solve.gurobi import SimpleGurobiSolver
