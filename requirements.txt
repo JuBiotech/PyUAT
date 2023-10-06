@@ -1,5 +1,5 @@
 acia @ git+https://gitlab+deploy-token-246:1vChivReKYN9aTgQEw-g@jugit.fz-juelich.de/j.seiffarth/acia.git@a9f93f5300ceffef81aff3e8e5369a4d563a1d20
-tensor_tree @ git+https://gitlab+deploy-token-245:LAxSyBpyNC8fvQrzrmng@jugit.fz-juelich.de/IBG-1/ModSim/tensortree.git@4acf2b96c9dff50eadd57fad5f9f9a82f1088f06
+tensor_tree @ git+https://gitlab+deploy-token-245:LAxSyBpyNC8fvQrzrmng@jugit.fz-juelich.de/IBG-1/ModSim/tensortree.git@4f18573165a5fdc59a5b778ad153fa797bcb0902
 mip>=1.15.0
 ray
 gurobipy==9.5.2
