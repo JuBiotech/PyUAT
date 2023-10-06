@@ -340,7 +340,7 @@ def computeBestExpansions(
         it = current_cluster_dist
 
         if report_progress:
-            it = tqdm.tqdm(current_cluster_dist)
+            it = tqdm(current_cluster_dist)
 
         for cluster in it:
             single_solutions.append(
@@ -379,7 +379,7 @@ def computeBestExpansions(
         )  # ray.get(new_cluster_candidates_and_weights)
 
         if report_progress:
-            ray_it = tqdm.tqdm(ray_it, total=len(single_solutions))
+            ray_it = tqdm(ray_it, total=len(single_solutions))
 
         split_solutions = list(zip(*list(ray_it)))
 
@@ -499,7 +499,7 @@ def computeAllExpansions(
         it = current_cluster_dist
 
         if report_progress:
-            it = tqdm.tqdm(current_cluster_dist)
+            it = tqdm(current_cluster_dist)
 
         for i, cluster in enumerate(it):
             new_cluster_candidates_and_weights += simpleExpansion(
@@ -541,7 +541,7 @@ def computeAllExpansions(
         )  # ray.get(new_cluster_candidates_and_weights)
 
         if report_progress:
-            ray_it = tqdm.tqdm(ray_it, total=len(new_cluster_candidates_and_weights))
+            ray_it = tqdm(ray_it, total=len(new_cluster_candidates_and_weights))
 
         new_cluster_candidates_and_weights = reduce(lambda a, b: a + b, ray_it)
     else:
@@ -618,7 +618,7 @@ def simpleTracking(
     try:
         # loop over consecutive frames
         for frame_index, (source_frame, target_frame) in enumerate(
-            tqdm.tqdm(zip(frames, frames[1:]), total=len(frames) - 1)
+            tqdm(zip(frames, frames[1:]), total=len(frames) - 1)
         ):
             print("frames", source_frame, target_frame)
 

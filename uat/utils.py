@@ -80,7 +80,7 @@ class DistanceComputer:
         with multiprocessing.Pool(num_cores) as p:
 
             result = []
-            for ind_result in tqdm.tqdm(
+            for ind_result in tqdm(
                 p.imap_unordered(
                     lambda frame_id: DistanceComputer.precomputeDistancesInFrame(
                         detections, frame_id
@@ -137,8 +137,8 @@ class ContourDistanceCache:
         distances = []
         distances = self.__multi_processing(contours)
         # with multiprocessing.Pool(16) as pool:
-        #    distances = list(tqdm.tqdm(pool.imap(partial(compute_distances(contours=contours)),range(self.n)), total=self.n))
-        #    #for i in tqdm.tqdm(range(self.n)):
+        #    distances = list(tqdm(pool.imap(partial(compute_distances(contours=contours)),range(self.n)), total=self.n))
+        #    #for i in tqdm(range(self.n)):
 
         self.distances = np.concatenate(distances)
 
@@ -161,7 +161,7 @@ class ContourDistanceCache:
         ray_it = to_iterator(distances)
 
         # if report_progress:
-        ray_it = tqdm.tqdm(ray_it, total=len(distances))
+        ray_it = tqdm(ray_it, total=len(distances))
 
         return list(ray_it)
 
