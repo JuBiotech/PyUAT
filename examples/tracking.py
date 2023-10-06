@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import json
 import time
 from pathlib import Path
 
@@ -99,24 +100,14 @@ def load_local_data(simple_seg_file):
     return ov
 
 
-def main(input_file, output_folder):
+def load_single_cell_information(input_file: Path) -> DataFrame:
 
     # all_detections, width, ov = load_local_data(output_folder/ "pred_simpleSegmentation.json.gz", width=997, subsampling_factor=40) #load_omero_data(output_folder, omero_id)
     ov = load_local_data(input_file)
     # ov = Overlay([cont for cont in ov if cont.frame <= 100])
     all_detections = ov.contours
 
-    # TODO: hardcoded
-    width = 434
-
     # split_proposals, major_axes = compute_split_proposals(all_detections)
-
-    # extract arguments
-    num_particles = 1  # args.nb_particles
-    num_cores = 1  # args.nb_cpus
-    max_num_hypotheses = 1  # args.nb_max_hypotheses
-    cutOff = -1  # args.cutOff
-    max_num_solutions = 1  # args.sol_pool_size
 
     # create the main data frame
     entries = []
@@ -129,7 +120,7 @@ def main(input_file, output_folder):
             minor_axis,
             major_extents,
             minor_extents,
-        ) = compute_axes_info(det)
+        ) = compute_axes_info(det.polygon)
 
         # add entry for this cell
         entries.append(
@@ -149,41 +140,79 @@ def main(input_file, output_folder):
             }
         )
     df = DataFrame(entries)
-    print(df)
 
-    # put data into numpy arrays (greatly increases the speed, as data can be immediately indexed)
-    data = {
-        "area": np.array(df["area"].to_list(), dtype=np.float32),
-        "centroid": np.array(df["centroid"].to_list(), dtype=np.float32),
-        "major_extents": np.array(df["major_extents"].to_list(), dtype=np.float32),
-    }
+    return df, all_detections
 
-    print(df)
 
-    assignment_generators = setup_assignment_generators(df, data, width)
+def save_tracking(final_cluster, detections, output_file: Path = "tracking.json.gz"):
+    # Path(self.output_folder).mkdir(exist_ok=True)
+    edge_list = list(
+        map(
+            lambda e: (int(e[0]), int(e[1])),
+            final_cluster.tracking.createIndexTracking().edges,
+        )
+    )
 
-    # create reporters
-    reporters = [
-        SimpleTrackingReporter(output_folder, df, all_detections, assignment_generators)
+    tracking_data = [
+        dict(
+            sourceId=detections[edge[0]].id,
+            targetId=detections[edge[1]].id,
+        )
+        for edge in edge_list
+    ]
+    segmentation_data = [
+        dict(
+            label=cont.label,
+            contour=cont.coordinates.tolist(),
+            id=cont.id,
+            frame=cont.frame,
+        )
+        for cont in detections
     ]
 
-    print(reporters[0].output_folder)
+    data_structure = dict(
+        segmentation=segmentation_data,
+        tracking=tracking_data,
+        format_version="0.0.1",
+    )
+
+    with gzip.open(output_file, "wt") as output_writer:
+        json.dump(data_structure, output_writer)
+
+
+def main(input_file, output_file):
+
+    # extract arguments
+    num_particles = 1  # args.nb_particles
+    num_cores = 1  # args.nb_cpus
+    max_num_hypotheses = 1  # args.nb_max_hypotheses
+    cutOff = -1  # -10  # args.cutOff
+    max_num_solutions = 1  # 10  # args.sol_pool_size
+
+    df, all_detections = load_single_cell_information(input_file)
+
+    # TODO: hardcoded
+    width = 434
+
+    assignment_generators = setup_assignment_generators(df, width)
 
     # start tracking
     start = time.time()
-    simpleTracking(
+    res = simpleTracking(
         df,
         assignment_generators,
         num_particles,
         num_cores=num_cores,
-        reporters=reporters,
         max_num_hypotheses=max_num_hypotheses,
         cutOff=cutOff,
         max_num_solutions=max_num_solutions,
+        mip_method="CBC",  # use gurobi if it is installed, otherwise go back to CBC (slower)
     )
     end = time.time()
 
     print("time for tracking", end - start)
+
+    save_tracking(res[0], all_detections, output_file)
 
 
 if __name__ == "__main__":
@@ -200,8 +229,8 @@ if __name__ == "__main__":
         type=str,
         default="examples/pred_simpleSegmentation.json",
     )
-    parser.add_argument("-o", "--output_folder", type=str, default="tracking_output")
+    parser.add_argument("-o", "--output_file", type=str, default="tracking.json.gz")
 
     args = parser.parse_args()
 
-    main(Path(args.input_file), Path(args.output_folder))
+    main(Path(args.input_file), Path(args.output_file))

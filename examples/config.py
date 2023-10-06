@@ -189,7 +189,15 @@ def create_split_movement_model(data, max_distance):
     )
 
 
-def setup_assignment_generators(df, data, width):
+def setup_assignment_generators(df, width):
+
+    # put data into numpy arrays (greatly increases the speed, as data can be immediately indexed)
+    data = {
+        "area": np.array(df["area"].to_list(), dtype=np.float32),
+        "centroid": np.array(df["centroid"].to_list(), dtype=np.float32),
+        "major_extents": np.array(df["major_extents"].to_list(), dtype=np.float32),
+    }
+
     # TODO: Why these values?
     constant_new_model = ConstantModel(np.log(0.25**2))
     constant_end_model = ConstantModel(np.log(0.25**2))
