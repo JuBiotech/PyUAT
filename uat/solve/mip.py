@@ -25,6 +25,10 @@ class SimpleMIPSolver:
         # costs are one-dimensional
         self.costs = np.array(costs).flatten()
 
+        if solver_name == "auto":
+            # let library choose installed optimizer (prefers gurobi)
+            solver_name = ""
+
         m = Model(solver_name=solver_name)
 
         # set amount of threads
