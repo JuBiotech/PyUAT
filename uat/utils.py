@@ -5,12 +5,16 @@ import itertools
 import json
 import multiprocessing
 from functools import partial, reduce
+from itertools import tee
 from pathlib import Path
 
+import cv2
 import numpy as np
 import ray
 from acia.segm.formats import parse_simple_segmentation
+from acia.segm.output import VideoExporter
 from pandas import DataFrame
+from PIL import Image, ImageDraw
 from scipy.spatial.distance import cdist
 from tqdm.auto import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -418,3 +422,89 @@ def save_tracking(final_cluster, detections, output_file: Path = "tracking.json.
 
     with gzip.open(output_file, "wt") as output_writer:
         json.dump(data_structure, output_writer)
+
+
+def render_tracking_video(
+    image_source,
+    overlay_iterator,
+    tracking,
+    output_file="track.avi",
+    framerate=3,
+    codec="MJPG",
+):
+    """Render tracking video
+
+    Args:
+        image_source (_type_): acia image source iterator
+        overlay_iterator (_type_): iterator over cell overlay
+        tracking (_type_): tracking graph
+        output_file (str, optional): Output file for the video. Defaults to "track.avi".
+        framerate (int, optional): Rendering framerate (fps). Defaults to 3.
+        codec (str, optional): fourcc codec (e.g. MJPG, VP09, ...). Defaults to "MJPG".
+    """
+
+    overlay_iterator, consumer = tee(overlay_iterator)
+    all_contours = reduce(
+        lambda a, b: a + b,
+        [[cont for overlay in iter(consumer) for cont in overlay]],
+        [],
+    )
+    contour_lookup = {cont.id: cont for cont in all_contours}
+
+    with VideoExporter(str(output_file), framerate, codec) as ve:
+        for frame, (image, overlay) in enumerate(
+            tqdm(zip(image_source, overlay_iterator))
+        ):
+            pil_image = Image.fromarray(image.raw)
+            overlay.draw(pil_image, "#00FFFF", None)
+
+            draw = ImageDraw.Draw(pil_image)
+
+            draw.text((30, 30), f"Frame: {frame}", fill="white")
+
+            np_image = np.array(pil_image)
+
+            for cont in overlay:
+                if cont.id in tracking.nodes:
+                    edges = tracking.out_edges(cont.id)
+
+                    born = tracking.in_degree(cont.id) == 0
+
+                    for edge in edges:
+                        source = contour_lookup[edge[0]].center
+                        target = contour_lookup[edge[1]].center
+
+                        line_color = (0, 0, 255)  # bgr: red
+
+                        if len(edges) > 1:
+                            line_color = (255, 0, 0)  # bgr: blue
+
+                        cv2.line(
+                            np_image,
+                            tuple(map(int, source)),
+                            tuple(map(int, target)),
+                            line_color,
+                            thickness=3,
+                        )
+
+                        if born:
+                            cv2.circle(
+                                np_image,
+                                tuple(map(int, source)),
+                                3,
+                                (203, 192, 255),
+                                thickness=1,
+                            )
+
+                    if len(edges) == 0:
+                        cv2.rectangle(
+                            np_image,
+                            cont.center.astype(np.int32) - 2,
+                            cont.center.astype(np.int32) + 2,
+                            (203, 192, 255),
+                        )
+
+                        # draw.line([tuple(source), tuple(target)], fill="#FF0000", width=2)
+
+            # cv2.imwrite(str(output_folder / f"image{frame:03}.png"), np_image)
+            ve.write(np_image)
