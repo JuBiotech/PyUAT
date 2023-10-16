@@ -1,11 +1,16 @@
 """ Collection of utility functionality """
 
+import gzip
 import itertools
+import json
 import multiprocessing
 from functools import partial, reduce
+from pathlib import Path
 
 import numpy as np
 import ray
+from acia.segm.formats import parse_simple_segmentation
+from pandas import DataFrame
 from scipy.spatial.distance import cdist
 from tqdm.auto import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -285,3 +290,131 @@ class NearestNeighborCache:
         )
         return distances
         # return self.distanceCache.pairwise_distance[pair_ind_to_dist_ind(self.num_elements, indexListA, indexListB)]
+
+
+def load_local_data(simple_seg_file):
+    print("Loading segmentation...")
+    # Load segmentation or additional tracking information
+    with open(simple_seg_file, encoding="UTF-8") as input_file:
+        ov = parse_simple_segmentation(input_file.read())
+
+    return ov
+
+
+def load_single_cell_information(input_file: Path) -> DataFrame:
+
+    # all_detections, width, ov = load_local_data(output_folder/ "pred_simpleSegmentation.json.gz", width=997, subsampling_factor=40) #load_omero_data(output_folder, omero_id)
+    ov = load_local_data(input_file)
+    # ov = Overlay([cont for cont in ov if cont.frame <= 100])
+    all_detections = ov.contours
+
+    # split_proposals, major_axes = compute_split_proposals(all_detections)
+
+    # create the main data frame
+    entries = []
+    for _, det in enumerate(all_detections):
+        # compute the axis info
+        (
+            width,
+            length,
+            major_axis,
+            minor_axis,
+            major_extents,
+            minor_extents,
+        ) = compute_axes_info(det.polygon)
+
+        # add entry for this cell
+        entries.append(
+            {
+                "area": det.area,
+                "centroid": np.array(det.center),
+                "perimeter": det.polygon.length,
+                "id": det.id,
+                "frame": det.frame,
+                "contour": np.array(det.coordinates),
+                "width": width,
+                "length": length,
+                "major_axis": major_axis,
+                "minor_axis": minor_axis,
+                "major_extents": major_extents,
+                "minor_extents": minor_extents,
+            }
+        )
+    df = DataFrame(entries)
+
+    return df, all_detections
+
+
+def compute_axes_info(polygon):
+    """Extract information about the major and minor axes from a single detection
+
+    Args:
+        det (_type_): detection object
+
+    Returns:
+        _type_: a lot of information about major and minor axes
+    """
+    # get the minimum rotated rectangle around a detection
+    mrr = polygon.minimum_rotated_rectangle
+    coordinates = np.array(mrr.boundary.coords)
+
+    # substract all coordinates to get the distances
+    diff_vectors = coordinates[:-1] - coordinates[1:]
+    distances = np.linalg.norm(diff_vectors, axis=1)
+
+    # minor axis has lower distance than major axis
+    minor_index = np.argmin(distances)
+    major_index = np.argmax(distances)
+
+    # compute width and length (minor axis, major axis)
+    width = distances[minor_index]
+    length = distances[major_index]
+
+    # extract minor and major axis
+    minor_axis = diff_vectors[minor_index]
+    major_axis = diff_vectors[major_index]
+
+    center = np.array(mrr.centroid.coords)[0]
+
+    # construct axis endpoints (extents)
+    major_extents = center + 0.5 * np.array([major_axis, -major_axis])
+    minor_extents = center + 0.5 * np.array([minor_axis, -minor_axis])
+
+    # return all extracted values
+    return width, length, major_axis, minor_axis, major_extents, minor_extents
+
+
+def save_tracking(final_cluster, detections, output_file: Path = "tracking.json.gz"):
+    # Path(self.output_folder).mkdir(exist_ok=True)
+    edge_list = list(
+        map(
+            lambda e: (int(e[0]), int(e[1])),
+            final_cluster.tracking.createIndexTracking().edges,
+        )
+    )
+
+    tracking_data = [
+        dict(
+            sourceId=detections[edge[0]].id,
+            targetId=detections[edge[1]].id,
+        )
+        for edge in edge_list
+    ]
+    segmentation_data = [
+        dict(
+            label=cont.label,
+            contour=cont.coordinates.tolist(),
+            id=cont.id,
+            frame=cont.frame,
+        )
+        for cont in detections
+    ]
+
+    data_structure = dict(
+        segmentation=segmentation_data,
+        tracking=tracking_data,
+        format_version="0.0.1",
+    )
+
+    with gzip.open(output_file, "wt") as output_writer:
+        json.dump(data_structure, output_writer)
