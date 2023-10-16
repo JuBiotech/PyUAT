@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 import ray
 from acia.segm.formats import parse_simple_segmentation
-from acia.segm.output import VideoExporter
+from acia.viz import VideoExporter
 from pandas import DataFrame
 from PIL import Image, ImageDraw
 from scipy.spatial.distance import cdist
