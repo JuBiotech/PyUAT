@@ -224,3 +224,13 @@ def create_split_movement_model(data, prob):
         prob,
         data,
     )
+
+
+class SimpleCDC:
+    """class to compute contour distances (approximated by center position in favor of speed)"""
+
+    def __init__(self, positions):
+        self.positions = positions
+
+    def distance(self, indA, indB):
+        return np.linalg.norm(self.positions[indA] - self.positions[indB], axis=1)
