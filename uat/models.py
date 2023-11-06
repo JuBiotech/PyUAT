@@ -69,6 +69,111 @@ def area_growth_computer(tracking, source_index, target_index, df):
     return np.divide(target_joint_area, source_areas)
 
 
+def predict_movement(
+    tracking,
+    source_index,
+    df,
+    history: int,
+    alpha=None,
+    stop_at_split=True,
+):
+    """
+    Predict the movement of a cell based on its past movements (in history timesteps). If no history is available assume no movement.
+
+    Returns the distance between the prediction and the true positions
+
+    """
+    # fetch centroids
+    all_centroids = df[
+        "centroid"
+    ]  # np.array(df['centroid'].to_list(), dtype=np.float32)
+
+    # compute unique array
+    unique_sources, inverse_indexing = np.unique(source_index, return_inverse=True)
+
+    # perform walks from unique sources
+    parents = backend.compute_walks_upward(
+        tracking.parents, unique_sources, history, stop_at_split=stop_at_split
+    )
+
+    # get the centroids of the walks
+    #walk_centroids = backend.compute_centroids(parents, all_centroids)
+
+    # compute the average movement along the walks
+    avg_movement = backend.compute_avg_property_along_walk(
+        parents, all_centroids, exp_moving_average=alpha
+    )
+
+    # predict the next position of the sources
+    pred_position = all_centroids[unique_sources] + avg_movement
+
+    # rearrange predicted positions to assignment shape
+    source_predictions = pred_position[inverse_indexing, :]
+
+    # for all the sources without history we assume no movement
+    pred_mask = np.all(source_predictions.mask, axis=1)
+    source_predictions[pred_mask, :] = all_centroids[
+        source_index[pred_mask].flatten(), :
+    ]
+
+    return source_predictions
+
+def predict_property(
+    tracking,
+    source_index,
+    df,
+    history: int,
+    alpha=None,
+    stop_at_split=True,
+    property_name="area"
+):
+    """
+    Predicts the development of a single-cell property based on its past movements (in history timesteps). If no history is available assume no development.
+
+    Returns the distance between the prediction and the true cell property
+    """
+    # fetch centroids
+    all_properties = df[
+        property_name
+    ]  # np.array(df['centroid'].to_list(), dtype=np.float32)
+
+    # auto compute property dimension
+    prop_dim = 1
+    if len(all_properties.shape) == 2:
+        prop_dim = all_properties.shape[-1]
+
+
+    # compute unique array
+    unique_sources, inverse_indexing = np.unique(source_index, return_inverse=True)
+
+    # perform walks from unique sources
+    parents = backend.compute_walks_upward(
+        tracking.parents, unique_sources, history, stop_at_split=stop_at_split
+    )
+
+    # get the centroids of the walks
+    #walk_centroids = backend.compute_centroids(parents, all_centroids)
+
+    # compute the average movement along the walks
+    avg_movement = backend.compute_avg_property_along_walk(
+        parents, all_properties, exp_moving_average=alpha, distance_dims=prop_dim
+    )
+
+    # predict the next position of the sources
+    pred_position = all_properties[unique_sources] + avg_movement
+
+    # rearrange predicted positions to assignment shape
+    source_predictions = pred_position[inverse_indexing, ...]
+
+    # for all the sources without history we assume no movement
+    pred_mask = np.all(source_predictions.mask, axis=-1)
+    if np.any(pred_mask):
+        source_predictions[pred_mask] = all_properties[
+            source_index[pred_mask].flatten()
+        ]
+
+    return source_predictions
+
 def distance_to_pred_computer(
     tracking,
     source_index,
@@ -102,7 +207,7 @@ def distance_to_pred_computer(
 
     # compute the average movement along the walks
     avg_movement = backend.compute_avg_property_along_walk(
-        parents, walk_centroids, exp_moving_average=alpha
+        parents, all_centroids, exp_moving_average=alpha
     )
 
     # predict the next position of the sources
@@ -125,6 +230,8 @@ def distance_to_pred_computer(
     )
 
     assignment_distances = assignment_distances.reshape((len(source_index), -1))
+
+    print("shape", assignment_distances.shape)
 
     # return the distances
     return assignment_distances
