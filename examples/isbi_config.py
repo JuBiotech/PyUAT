@@ -80,14 +80,102 @@ def create_split_children_distance_model(
 
     return split_children_distance_model
 
+def compute_angle_between_children(maj_extA, maj_extB):
+    """Computes the angle between the children
+
+        uses the major axes and the poles in order to orient them accordingly.
+
+        The angle is computed in degrees [0...180]
+    """
+
+    loc_distances = np.linalg.norm(
+                maj_extA[:, None, :] - maj_extB[None, :, :], axis=-1
+            )
+    
+    min_distance = np.min(loc_distances)
+    #print(np.array(np.where(min_distance == loc_distances)).flatten())
+    
+    # use the directions pointing towads the new tips
+    data = np.array(np.where(min_distance == loc_distances))
+    #print(data.shape)
+    #print(loc_distances)
+    a_ind, b_ind = data[:,0].flatten()
+    adir =  maj_extA[1-a_ind] - maj_extA[a_ind]
+    bdir =  maj_extB[1-b_ind] - maj_extB[b_ind]
+    #print(adir, bdir)
+    
+    return np.arccos(np.dot(adir, bdir) / np.linalg.norm(adir) / np.linalg.norm(bdir)) * 180 / np.pi
+
+def log_sum(la,lb):
+    """log(a + b) = la + log1p(exp(lb - la)) from https://stackoverflow.com/questions/65233445/how-to-calculate-sums-in-log-space-without-underflow"""
+    #la = np.log(a)
+    #lb = np.log(b)
+    return la + np.log1p(np.exp(lb - la))
+
+def prob_angles(angles, loc, scale):
+
+    # compute the difference
+    diff = np.abs(loc - angles)
+
+    # compute the probability of more extreme values
+    prob = log_sum(norm.logcdf(loc - diff, loc=loc, scale=scale), norm.logsf(loc + diff, loc=loc, scale=scale))
+
+    # do not use nan values
+    prob[np.isnan(prob)] = -30
+
+    return prob
+
+def prob_cont_angles(angles, scale):
+
+    # compute the probability of more extreme values
+    prob = halfnorm.logsf(angles, loc=scale)#log_sum(norm.logcdf(loc - diff, loc=loc, scale=scale), norm.logsf(loc + diff, loc=loc, scale=scale))
+
+    # do not use nan values
+    prob[np.isnan(prob)] = -30
+
+    return prob
+
+def create_continue_angle_model(
+    data,
+    prob
+):
+    # pylint: disable=unused-argument
+    def continue_angle_extractor(
+        tracking,
+        source_index,
+        target_index,
+        df,
+    ):
+        major_axis = df["major_axis"]
+
+        majA = major_axis[source_index.flatten()]
+        majB = major_axis[target_index.flatten()]
+
+        norm = np.linalg.norm(majA, axis=-1) / np.linalg.norm(majB, axis=-1)
+
+        raw_values = np.stack([
+            [np.dot(a, b) for a,b in zip(majA, majB)] / norm,
+            [np.dot(-a, b) for a,b in zip(majA, majB)] / norm,
+        ], axis=-1)
+
+        raw_values = np.clip(raw_values, -1., 1.)
+
+        angles = np.min(np.arccos(raw_values) * 180 / np.pi, axis=-1)
+
+        return angles
+
+    continue_angle_model = ModelExecutor(continue_angle_extractor, prob, data)
+
+    return continue_angle_model
 
 def create_split_children_angle_model(
     data,
-    prob=lambda vs: norm.logpdf(
-        np.abs(np.cos(vs * (2 * np.pi / 360))),
-        loc=np.cos(0 * 2 * np.pi / 360),
-        scale=0.1,
-    ),
+    prob=prob_angles
+#    lambda vs: norm.logpdf(
+#        np.abs(np.cos(vs * (2 * np.pi / 360))),
+#        loc=np.cos(0 * 2 * np.pi / 360),
+#        scale=0.1,
+#    ),
 ):
     # pylint: disable=unused-argument
     def split_angle_extractor(
@@ -102,15 +190,13 @@ def create_split_children_angle_model(
 
         for i, (a, b) in enumerate(target_index):
             # extract both major axes vectors
-            a_vector = major_extents[a][0] - major_extents[a][1]
-            b_vector = major_extents[b][0] - major_extents[b][1]
+            majA = major_extents[a]
+            majB = major_extents[b]
 
-            # compute the angle between them
-            cos_angles[i] = (
-                np.dot(a_vector, b_vector)
-                / np.linalg.norm(a_vector)
-                / np.linalg.norm(b_vector)
-            )  # -> cosine of the angle
+            #print(majA)
+            #print(majB)
+
+            cos_angles[i] = compute_angle_between_children(majA, majB)
 
         return cos_angles
 
@@ -163,27 +249,71 @@ def distance_to_previous(tracking, source_index, target_index, data):
     sources = all_centroids[source_index]
     targets = all_centroids[target_index]
 
-    return np.linalg.norm(sources - targets, axis=-1).squeeze()
+    distances = np.linalg.norm(sources - targets, axis=-1)
+
+    #if len(distances.shape) == 2:
+    # take the sum of distances (only one distance for migration, two distances for division)
+    distances = np.sum(distances, axis=-1)
+
+    return distances
 
 
-def create_continue_keep_position_model(data, max_distance):
+def create_continue_keep_position_model(data, prob):
     return ModelExecutor(
         # partial(distance_to_pred_computer, alpha=1, history=0, stop_at_split=True),
         distance_to_previous,
-        lambda values: beta.logsf(
-            np.clip(values.squeeze() / max_distance, 0, 1), a=1, b=3
-        ),
+        prob,
+        #lambda values: beta.logsf(
+        #    np.clip(values.squeeze() / max_distance, 0, 1), a=1, b=3
+        #),
         # lambda values: expon.logsf(values, scale=5),
         data,
     )
 
+def dis_app_prob_func(x_coordinates, max_overshoot, min_dist, x_size: int):
+    total_auc = 0.5 * (min_dist + max_overshoot)**2
+    area_func = lambda x: 0.5 * (x + max_overshoot) ** 2
+    prob = np.log(1-area_func(np.clip(np.min(np.stack([x_coordinates, x_size - x_coordinates]), axis=0), -max_overshoot, min_dist)) / total_auc)
 
-def create_split_movement_model(data, max_distance):
+    prob[np.isnan(prob)] = -30
+
+    return prob
+
+
+def source_position_extractor(
+    tracking,
+    source_index,
+    target_index,
+    df,
+):
+    # extract the x-position of all sources
+    return df["centroid"][source_index.flatten()][:, 1]
+
+
+def create_disappear_model(data, width: int):
     return ModelExecutor(
-        partial(distance_to_pred_computer, alpha=1, history=0, stop_at_split=True),
-        lambda values: beta.logsf(
-            np.clip(values.squeeze() / max_distance, 0, 1), a=1, b=3
-        ).sum(axis=-1),
+        source_position_extractor,
+        partial(dis_app_prob_func, max_overshoot=20, min_dist=20, x_size=width),
+        data
+    )
+
+
+def create_continue_temp_position_model(data, prob, history=3):
+    return ModelExecutor(
+        partial(distance_to_pred_computer, alpha=None, history=history, stop_at_split=True),
+        prob,
+        data,
+    )
+
+
+def create_split_movement_model(data, prob):
+    return ModelExecutor(
+        #partial(distance_to_pred_computer, alpha=1, history=0, stop_at_split=True),
+        distance_to_previous,
+        prob,
+        #lambda values: beta.logsf(
+        #    np.clip(values.squeeze() / max_distance, 0, 1), a=1, b=3
+        #).sum(axis=-1),
         # lambda values: expon.logsf(values, scale=5).sum(axis=-1),
         data,
     )
@@ -216,10 +346,17 @@ class SimpleCDC:
         return np.linalg.norm(self.positions[indA] - self.positions[indB], axis=1)
 
 
-def setup_assignment_generators(df, data, width, subsampling, use_split_distance = False):
+def setup_assignment_generators(df, data, width, subsampling, use_split_distance = False, use_split_angle = False, mig_growth_scale=0.05, mig_movement_scale=20, div_growth_scale=None, div_movement_scale=20, app_prob = 0.25):
+
+    if div_growth_scale is None:
+        div_growth_scale = 2 * mig_growth_scale
+    if div_movement_scale is None:
+        div_movement_scale = 2 * mig_movement_scale
+
     # TODO: Why these values?
-    constant_new_model = ConstantModel(np.log(0.5**2))
-    constant_end_model = ConstantModel(np.log(0.5**2))
+    constant_new_model = ConstantModel(np.log(app_prob))
+    #constant_end_model = ConstantModel(np.log(app_prob))
+    constant_end_model = create_disappear_model(data, width)
 
     end_pos_model = create_end_pos_model(data, width)
 
@@ -240,9 +377,9 @@ def setup_assignment_generators(df, data, width, subsampling, use_split_distance
 
     max_distance = 200
 
-    continue_keep_position_model = create_continue_keep_position_model(
-        data, max_distance
-    )
+    #continue_keep_position_model = create_continue_keep_position_model(
+    #    data, max_distance
+    #)
 
     def movement_log_pdf(values):
 
@@ -259,20 +396,27 @@ def setup_assignment_generators(df, data, width, subsampling, use_split_distance
 
     # create the movement models
     continue_keep_position_model = create_continue_keep_position_model(
-        data, max_distance
+        data, prob=lambda val: halfnorm.logsf(val, scale=mig_movement_scale*subsampling)
     )
-    split_movement_model = create_split_movement_model(data, max_distance)
+
+    continue_keep_position_model = create_continue_temp_position_model(
+        data, prob=lambda val: halfnorm.logsf(val.flatten(), scale=mig_movement_scale*subsampling)
+    )
+
+    split_movement_model = create_split_movement_model(data, prob=lambda val: halfnorm.logsf(val, scale=div_movement_scale*subsampling))
 
     # pylint: disable=unused-variable
     split_rate_model = create_split_rate_model(data)
 
     # create distance models for splits
     split_children_distance_model = create_split_children_distance_model(data, prob=lambda vs: halfnorm.logsf(vs, loc=0, scale=3*subsampling))
-    split_children_angle_model = create_split_children_angle_model(data)
+
+    continue_angle_model = create_continue_angle_model(data, prob=partial(prob_cont_angles, scale=20*subsampling))
+    split_children_angle_model = create_split_children_angle_model(data,prob=partial(prob_angles, loc=135, scale=20*subsampling))
 
     # create growth models
-    continue_growth_model = create_growth_model(data, mean=1.008**subsampling, scale=0.6)
-    split_growth_model = create_growth_model(data, mean=1.016**subsampling, scale=0.6)
+    continue_growth_model = create_growth_model(data, mean=1.008**subsampling, scale=mig_growth_scale * subsampling)
+    split_growth_model = create_growth_model(data, mean=1.016**subsampling, scale=div_growth_scale * subsampling)
 
     migration_models = [
         continue_keep_position_model,
@@ -289,6 +433,11 @@ def setup_assignment_generators(df, data, width, subsampling, use_split_distance
 
     if use_split_distance:
         split_models.append(split_children_distance_model)
+
+    if use_split_angle:
+        #split_models.append(split_children_angle_model)
+        #migration_models.append(continue_angle_model)
+        pass
 
     assignment_generators = [
         SimpleNewAssGenerator([constant_new_model]),

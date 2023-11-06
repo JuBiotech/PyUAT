@@ -83,6 +83,7 @@ def main(source_file, output_file, subsampling, config):
         "area": np.array(df["area"].to_list(), dtype=np.float32),
         "centroid": np.array(df["centroid"].to_list(), dtype=np.float32),
         "major_extents": np.array(df["major_extents"].to_list(), dtype=np.float32),
+        "major_axis": np.array(df["major_axis"].to_list(), dtype=np.float32),
     }
 
     print(df)
