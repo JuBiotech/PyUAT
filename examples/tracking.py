@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import json
 import time
 from pathlib import Path
 
@@ -15,22 +14,15 @@ from acia.base import Contour, Overlay
 from acia.segm.formats import parse_simple_segmentation
 
 # pylint: disable=unused-import
-from acia.segm.omero.storer import (
-    OmeroSequenceSource,
-    download_file_from_object,
-    replace_file_annotation,
-)
+from acia.segm.omero.storer import download_file_from_object
 from acia.segm.omero.utils import getImage
 from config import setup_assignment_generators
 from credentials import host, password, port, username
 from gurobipy import GRB
-from networkx import DiGraph
 from omero.gateway import BlitzGateway
-from pandas import DataFrame
-from utils import cluster_to_tracking_graph, compute_axes_info, render_tracking_video
 
 from uat.core import simpleTracking
-from uat.output import SimpleTrackingReporter
+from uat.utils import load_single_cell_information, save_tracking
 
 gp.setParam(GRB.Param.LogFile, "gurobi.log")
 gp.setParam(GRB.Param.LogToConsole, 0)
@@ -91,95 +83,6 @@ def load_omero_data(output_folder, omero_id, subsampling_factor=40):
     return all_detections, width, ov
 
 
-def load_local_data(simple_seg_file):
-    print("Loading segmentation...")
-    # Load segmentation or additional tracking information
-    with open(simple_seg_file, encoding="UTF-8") as input_file:
-        ov = parse_simple_segmentation(input_file.read())
-
-    return ov
-
-
-def load_single_cell_information(input_file: Path) -> DataFrame:
-
-    # all_detections, width, ov = load_local_data(output_folder/ "pred_simpleSegmentation.json.gz", width=997, subsampling_factor=40) #load_omero_data(output_folder, omero_id)
-    ov = load_local_data(input_file)
-    # ov = Overlay([cont for cont in ov if cont.frame <= 100])
-    all_detections = ov.contours
-
-    # split_proposals, major_axes = compute_split_proposals(all_detections)
-
-    # create the main data frame
-    entries = []
-    for _, det in enumerate(all_detections):
-        # compute the axis info
-        (
-            width,
-            length,
-            major_axis,
-            minor_axis,
-            major_extents,
-            minor_extents,
-        ) = compute_axes_info(det.polygon)
-
-        # add entry for this cell
-        entries.append(
-            {
-                "area": det.area,
-                "centroid": np.array(det.center),
-                "perimeter": det.polygon.length,
-                "id": det.id,
-                "frame": det.frame,
-                "contour": np.array(det.coordinates),
-                "width": width,
-                "length": length,
-                "major_axis": major_axis,
-                "minor_axis": minor_axis,
-                "major_extents": major_extents,
-                "minor_extents": minor_extents,
-            }
-        )
-    df = DataFrame(entries)
-
-    return df, all_detections
-
-
-def save_tracking(final_cluster, detections, output_file: Path = "tracking.json.gz"):
-    # Path(self.output_folder).mkdir(exist_ok=True)
-    edge_list = list(
-        map(
-            lambda e: (int(e[0]), int(e[1])),
-            final_cluster.tracking.createIndexTracking().edges,
-        )
-    )
-
-    tracking_data = [
-        dict(
-            sourceId=detections[edge[0]].id,
-            targetId=detections[edge[1]].id,
-        )
-        for edge in edge_list
-    ]
-    segmentation_data = [
-        dict(
-            label=cont.label,
-            contour=cont.coordinates.tolist(),
-            id=cont.id,
-            frame=cont.frame,
-        )
-        for cont in detections
-    ]
-
-    data_structure = dict(
-        segmentation=segmentation_data,
-        tracking=tracking_data,
-        format_version="0.0.1",
-    )
-
-    with gzip.open(output_file, "wt") as output_writer:
-        json.dump(data_structure, output_writer)
-
-
 def main(input_file, output_file):
 
     # extract arguments
@@ -206,7 +109,7 @@ def main(input_file, output_file):
         max_num_hypotheses=max_num_hypotheses,
         cutOff=cutOff,
         max_num_solutions=max_num_solutions,
-        mip_method="CBC",  # use gurobi if it is installed, otherwise go back to CBC (slower)
+        mip_method="auto",  # use gurobi if it is installed, otherwise go back to CBC (slower)
     )
     end = time.time()
 
