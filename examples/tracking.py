@@ -14,22 +14,15 @@ from acia.base import Contour, Overlay
 from acia.segm.formats import parse_simple_segmentation
 
 # pylint: disable=unused-import
-from acia.segm.omero.storer import (
-    OmeroSequenceSource,
-    download_file_from_object,
-    replace_file_annotation,
-)
+from acia.segm.omero.storer import download_file_from_object
 from acia.segm.omero.utils import getImage
 from config import setup_assignment_generators
 from credentials import host, password, port, username
 from gurobipy import GRB
-from networkx import DiGraph
 from omero.gateway import BlitzGateway
-from pandas import DataFrame
-from utils import cluster_to_tracking_graph, compute_axes_info, render_tracking_video
 
 from uat.core import simpleTracking
-from uat.output import SimpleTrackingReporter
+from uat.utils import load_single_cell_information, save_tracking
 
 gp.setParam(GRB.Param.LogFile, "gurobi.log")
 gp.setParam(GRB.Param.LogToConsole, 0)
@@ -90,100 +83,39 @@ def load_omero_data(output_folder, omero_id, subsampling_factor=40):
     return all_detections, width, ov
 
 
-def load_local_data(simple_seg_file):
-    print("Loading segmentation...")
-    # Load segmentation or additional tracking information
-    with open(simple_seg_file, encoding="UTF-8") as input_file:
-        ov = parse_simple_segmentation(input_file.read())
-
-    return ov
-
-
-def main(input_file, output_folder):
-
-    # all_detections, width, ov = load_local_data(output_folder/ "pred_simpleSegmentation.json.gz", width=997, subsampling_factor=40) #load_omero_data(output_folder, omero_id)
-    ov = load_local_data(input_file)
-    # ov = Overlay([cont for cont in ov if cont.frame <= 100])
-    all_detections = ov.contours
-
-    # TODO: hardcoded
-    width = 434
-
-    # split_proposals, major_axes = compute_split_proposals(all_detections)
+def main(input_file, output_file):
 
     # extract arguments
     num_particles = 1  # args.nb_particles
     num_cores = 1  # args.nb_cpus
     max_num_hypotheses = 1  # args.nb_max_hypotheses
-    cutOff = -1  # args.cutOff
-    max_num_solutions = 1  # args.sol_pool_size
+    cutOff = -1  # -10  # args.cutOff
+    max_num_solutions = 1  # 10  # args.sol_pool_size
 
-    # create the main data frame
-    entries = []
-    for _, det in enumerate(all_detections):
-        # compute the axis info
-        (
-            width,
-            length,
-            major_axis,
-            minor_axis,
-            major_extents,
-            minor_extents,
-        ) = compute_axes_info(det)
+    df, all_detections = load_single_cell_information(input_file)
 
-        # add entry for this cell
-        entries.append(
-            {
-                "area": det.area,
-                "centroid": np.array(det.center),
-                "perimeter": det.polygon.length,
-                "id": det.id,
-                "frame": det.frame,
-                "contour": np.array(det.coordinates),
-                "width": width,
-                "length": length,
-                "major_axis": major_axis,
-                "minor_axis": minor_axis,
-                "major_extents": major_extents,
-                "minor_extents": minor_extents,
-            }
-        )
-    df = DataFrame(entries)
-    print(df)
+    # TODO: hardcoded
+    width = 434
 
-    # put data into numpy arrays (greatly increases the speed, as data can be immediately indexed)
-    data = {
-        "area": np.array(df["area"].to_list(), dtype=np.float32),
-        "centroid": np.array(df["centroid"].to_list(), dtype=np.float32),
-        "major_extents": np.array(df["major_extents"].to_list(), dtype=np.float32),
-    }
-
-    print(df)
-
-    assignment_generators = setup_assignment_generators(df, data, width)
-
-    # create reporters
-    reporters = [
-        SimpleTrackingReporter(output_folder, df, all_detections, assignment_generators)
-    ]
-
-    print(reporters[0].output_folder)
+    assignment_generators = setup_assignment_generators(df, width)
 
     # start tracking
     start = time.time()
-    simpleTracking(
+    res = simpleTracking(
         df,
         assignment_generators,
         num_particles,
         num_cores=num_cores,
-        reporters=reporters,
         max_num_hypotheses=max_num_hypotheses,
         cutOff=cutOff,
         max_num_solutions=max_num_solutions,
+        mip_method="auto",  # use gurobi if it is installed, otherwise go back to CBC (slower)
     )
     end = time.time()
 
     print("time for tracking", end - start)
+
+    save_tracking(res[0], all_detections, output_file)
 
 
 if __name__ == "__main__":
@@ -200,8 +132,8 @@ if __name__ == "__main__":
         type=str,
         default="examples/pred_simpleSegmentation.json",
     )
-    parser.add_argument("-o", "--output_folder", type=str, default="tracking_output")
+    parser.add_argument("-o", "--output_file", type=str, default="tracking.json.gz")
 
     args = parser.parse_args()
 
-    main(Path(args.input_file), Path(args.output_folder))
+    main(Path(args.input_file), Path(args.output_file))

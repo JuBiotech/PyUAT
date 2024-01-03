@@ -1,13 +1,22 @@
 """ Collection of utility functionality """
 
+import gzip
 import itertools
+import json
 import multiprocessing
 from functools import partial, reduce
+from itertools import tee
+from pathlib import Path
 
+import cv2
 import numpy as np
 import ray
-import tqdm
+from acia.segm.formats import parse_simple_segmentation
+from acia.viz import VideoExporter
+from pandas import DataFrame
+from PIL import Image, ImageDraw
 from scipy.spatial.distance import cdist
+from tqdm.auto import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
@@ -80,7 +89,7 @@ class DistanceComputer:
         with multiprocessing.Pool(num_cores) as p:
 
             result = []
-            for ind_result in tqdm.tqdm(
+            for ind_result in tqdm(
                 p.imap_unordered(
                     lambda frame_id: DistanceComputer.precomputeDistancesInFrame(
                         detections, frame_id
@@ -137,8 +146,8 @@ class ContourDistanceCache:
         distances = []
         distances = self.__multi_processing(contours)
         # with multiprocessing.Pool(16) as pool:
-        #    distances = list(tqdm.tqdm(pool.imap(partial(compute_distances(contours=contours)),range(self.n)), total=self.n))
-        #    #for i in tqdm.tqdm(range(self.n)):
+        #    distances = list(tqdm(pool.imap(partial(compute_distances(contours=contours)),range(self.n)), total=self.n))
+        #    #for i in tqdm(range(self.n)):
 
         self.distances = np.concatenate(distances)
 
@@ -161,7 +170,7 @@ class ContourDistanceCache:
         ray_it = to_iterator(distances)
 
         # if report_progress:
-        ray_it = tqdm.tqdm(ray_it, total=len(distances))
+        ray_it = tqdm(ray_it, total=len(distances))
 
         return list(ray_it)
 
@@ -285,3 +294,217 @@ class NearestNeighborCache:
         )
         return distances
         # return self.distanceCache.pairwise_distance[pair_ind_to_dist_ind(self.num_elements, indexListA, indexListB)]
+
+
+def load_local_data(simple_seg_file):
+    print("Loading segmentation...")
+    # Load segmentation or additional tracking information
+    with open(simple_seg_file, encoding="UTF-8") as input_file:
+        ov = parse_simple_segmentation(input_file.read())
+
+    return ov
+
+
+def load_single_cell_information(input_file: Path) -> DataFrame:
+
+    # all_detections, width, ov = load_local_data(output_folder/ "pred_simpleSegmentation.json.gz", width=997, subsampling_factor=40) #load_omero_data(output_folder, omero_id)
+    ov = load_local_data(input_file)
+    # ov = Overlay([cont for cont in ov if cont.frame <= 100])
+    all_detections = ov.contours
+
+    # split_proposals, major_axes = compute_split_proposals(all_detections)
+
+    # create the main data frame
+    entries = []
+    for _, det in enumerate(all_detections):
+        # compute the axis info
+        (
+            width,
+            length,
+            major_axis,
+            minor_axis,
+            major_extents,
+            minor_extents,
+        ) = compute_axes_info(det.polygon)
+
+        # add entry for this cell
+        entries.append(
+            {
+                "area": det.area,
+                "centroid": np.array(det.center),
+                "perimeter": det.polygon.length,
+                "id": det.id,
+                "frame": det.frame,
+                "contour": np.array(det.coordinates),
+                "width": width,
+                "length": length,
+                "major_axis": major_axis,
+                "minor_axis": minor_axis,
+                "major_extents": major_extents,
+                "minor_extents": minor_extents,
+            }
+        )
+    df = DataFrame(entries)
+
+    return df, all_detections
+
+
+def compute_axes_info(polygon):
+    """Extract information about the major and minor axes from a single detection
+
+    Args:
+        det (_type_): detection object
+
+    Returns:
+        _type_: a lot of information about major and minor axes
+    """
+    # get the minimum rotated rectangle around a detection
+    mrr = polygon.minimum_rotated_rectangle
+    coordinates = np.array(mrr.boundary.coords)
+
+    # substract all coordinates to get the distances
+    diff_vectors = coordinates[:-1] - coordinates[1:]
+    distances = np.linalg.norm(diff_vectors, axis=1)
+
+    # minor axis has lower distance than major axis
+    minor_index = np.argmin(distances)
+    major_index = np.argmax(distances)
+
+    # compute width and length (minor axis, major axis)
+    width = distances[minor_index]
+    length = distances[major_index]
+
+    # extract minor and major axis
+    minor_axis = diff_vectors[minor_index]
+    major_axis = diff_vectors[major_index]
+
+    center = np.array(mrr.centroid.coords)[0]
+
+    # construct axis endpoints (extents)
+    major_extents = center + 0.5 * np.array([major_axis, -major_axis])
+    minor_extents = center + 0.5 * np.array([minor_axis, -minor_axis])
+
+    # return all extracted values
+    return width, length, major_axis, minor_axis, major_extents, minor_extents
+
+
+def save_tracking(final_cluster, detections, output_file: Path = "tracking.json.gz"):
+    # Path(self.output_folder).mkdir(exist_ok=True)
+    edge_list = list(
+        map(
+            lambda e: (int(e[0]), int(e[1])),
+            final_cluster.tracking.createIndexTracking().edges,
+        )
+    )
+
+    tracking_data = [
+        dict(
+            sourceId=detections[edge[0]].id,
+            targetId=detections[edge[1]].id,
+        )
+        for edge in edge_list
+    ]
+    segmentation_data = [
+        dict(
+            label=cont.label,
+            contour=cont.coordinates.tolist(),
+            id=cont.id,
+            frame=cont.frame,
+        )
+        for cont in detections
+    ]
+
+    data_structure = dict(
+        segmentation=segmentation_data,
+        tracking=tracking_data,
+        format_version="0.0.1",
+    )
+
+    with gzip.open(output_file, "wt") as output_writer:
+        json.dump(data_structure, output_writer)
+
+
+def render_tracking_video(
+    image_source,
+    overlay_iterator,
+    tracking,
+    output_file="track.avi",
+    framerate=3,
+    codec="MJPG",
+):
+    """Render tracking video
+
+    Args:
+        image_source (_type_): acia image source iterator
+        overlay_iterator (_type_): iterator over cell overlay
+        tracking (_type_): tracking graph
+        output_file (str, optional): Output file for the video. Defaults to "track.avi".
+        framerate (int, optional): Rendering framerate (fps). Defaults to 3.
+        codec (str, optional): fourcc codec (e.g. MJPG, VP09, ...). Defaults to "MJPG".
+    """
+
+    overlay_iterator, consumer = tee(overlay_iterator)
+    all_contours = reduce(
+        lambda a, b: a + b,
+        [[cont for overlay in iter(consumer) for cont in overlay]],
+        [],
+    )
+    contour_lookup = {cont.id: cont for cont in all_contours}
+
+    with VideoExporter(str(output_file), framerate, codec) as ve:
+        for frame, (image, overlay) in enumerate(
+            tqdm(zip(image_source, overlay_iterator))
+        ):
+            pil_image = Image.fromarray(image.raw)
+            overlay.draw(pil_image, "#00FFFF", None)
+
+            draw = ImageDraw.Draw(pil_image)
+
+            draw.text((30, 30), f"Frame: {frame}", fill="white")
+
+            np_image = np.array(pil_image)
+
+            for cont in overlay:
+                if cont.id in tracking.nodes:
+                    edges = tracking.out_edges(cont.id)
+
+                    born = tracking.in_degree(cont.id) == 0
+
+                    for edge in edges:
+                        source = contour_lookup[edge[0]].center
+                        target = contour_lookup[edge[1]].center
+
+                        line_color = (0, 0, 255)  # bgr: red
+
+                        if len(edges) > 1:
+                            line_color = (255, 0, 0)  # bgr: blue
+
+                        cv2.line(
+                            np_image,
+                            tuple(map(int, source)),
+                            tuple(map(int, target)),
+                            line_color,
+                            thickness=3,
+                        )
+
+                        if born:
+                            cv2.circle(
+                                np_image,
+                                tuple(map(int, source)),
+                                3,
+                                (203, 192, 255),
+                                thickness=1,
+                            )
+
+                    if len(edges) == 0:
+                        cv2.rectangle(
+                            np_image,
+                            cont.center.astype(np.int32) - 2,
+                            cont.center.astype(np.int32) + 2,
+                            (203, 192, 255),
+                        )
+
+                        # draw.line([tuple(source), tuple(target)], fill="#FF0000", width=2)
+
+            # cv2.imwrite(str(output_folder / f"image{frame:03}.png"), np_image)
+            ve.write(np_image)

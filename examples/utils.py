@@ -154,7 +154,7 @@ def compute_errors(sol_tracking_graph: DiGraph, pred_tracking_graph: DiGraph):
     print(f"False positives: {pred_edge_set - sol_edge_set}")
 
 
-def compute_axes_info(det):
+def compute_axes_info(polygon):
     """Extract information about the major and minor axes from a single detection
 
     Args:
@@ -164,7 +164,7 @@ def compute_axes_info(det):
         _type_: a lot of information about major and minor axes
     """
     # get the minimum rotated rectangle around a detection
-    mrr = det.polygon.minimum_rotated_rectangle
+    mrr = polygon.minimum_rotated_rectangle
     coordinates = np.array(mrr.boundary.coords)
 
     # substract all coordinates to get the distances
