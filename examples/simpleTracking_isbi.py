@@ -89,9 +89,12 @@ def main(source_file, output_file, subsampling, config):
     print(df)
 
     print("Config", config)
-    config = json.loads(config)
+    with open(config, "r", encoding="utf-8") as config_input:
+        config = json.load(config_input)
 
-    assignment_generators = setup_assignment_generators(df, data, width, subsampling, **config)
+    print("Config", config)
+
+    assignment_generators = setup_assignment_generators(df=df, data=data, subsampling=subsampling, width=width, **config)
 
     # create reporters
     reporters = [
@@ -126,5 +129,5 @@ def main(source_file, output_file, subsampling, config):
 
 
 if __name__ == "__main__":
-    sf, of, sub, config = (sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
-    main(sf, of, sub, config)
+    sf, of, sub, config_file = (sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    main(sf, of, sub, config_file)
