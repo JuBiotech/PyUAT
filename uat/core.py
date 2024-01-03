@@ -581,6 +581,7 @@ def simpleTracking(
     max_num_solutions=50,
     saving_interval=500,
     mip_method="auto",
+    frames=None,
 ):
     """
     df: data frame containing all cell information
@@ -598,7 +599,10 @@ def simpleTracking(
         ray.init(num_cpus=num_cores)
 
     # get the frame list
-    frames = np.concatenate([np.array([-1]), np.unique(df["frame"].to_numpy())])
+    if frames is None:
+        frames = np.arange(
+            0, np.max(df["frame"]) + 1
+        )  # np.concatenate([np.array([-1]), np.unique(df["frame"].to_numpy())])
 
     print("frames", frames)
 
