@@ -1,5 +1,7 @@
 """ Collection of utility functionality """
 
+from __future__ import annotations
+
 import gzip
 import itertools
 import json
