@@ -600,9 +600,7 @@ def simpleTracking(
 
     # get the frame list
     if frames is None:
-        frames = np.arange(
-            0, np.max(df["frame"]) + 1
-        )  # np.concatenate([np.array([-1]), np.unique(df["frame"].to_numpy())])
+        frames = np.unique(df["frame"])
 
     print("frames", frames)
 
