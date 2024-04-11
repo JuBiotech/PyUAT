@@ -760,7 +760,12 @@ def use_nearest_neighbor(
 
 
 def use_first_order_model(
-    data: dict[str, np.ndarray], subsampling: int, use_long_hist=1, fo_scale=5, **kwargs
+    data: dict[str, np.ndarray],
+    subsampling: int,
+    use_long_hist=1,
+    fo_mov_scale=5,
+    fo_growth_scale=10,
+    **kwargs,
 ) -> tuple[
     list[ModelExecutor], list[ModelExecutor], list[ModelExecutor], list[ModelExecutor]
 ]:
@@ -771,7 +776,8 @@ def use_first_order_model(
         data (dict[str, np.ndarray]): single-cell data (numpy arrays)
         subsampling (int): subsampling factor. Used to linearly scale the scale value of statistical distributions
         use_long_hist (int, optional): the track length used to predict single-cell properties. Defaults to 1.
-        fo_scale (int, optional): scale parameter for statistical distributions. Defaults to 5.
+        fo_mov_scale (float, optional): scale parameter for half-normal movement distribution. Defaults to 5.
+        fo_growth_scale (float, optional): scale parameter for half-normal growth distribution. Defaults to 10.
 
     Returns:
         tuple[list[ModelExecutor], list[ModelExecutor], list[ModelExecutor], list[ModelExecutor]]: list of scoring models for appearance, disappearance, migration and division models
@@ -785,11 +791,11 @@ def use_first_order_model(
     # First order movement models
     continue_movement_model = create_continue_temp_position_model(
         data,
-        lambda val: halfnorm.logsf(val, scale=fo_scale * subsampling),
+        lambda val: halfnorm.logsf(val, scale=fo_mov_scale * subsampling),
         history=use_long_hist,
     )  # first order movement model
     continue_growth_model = create_first_order_growth_model(
-        data, fo_scale * subsampling, history=use_long_hist
+        data, fo_growth_scale * subsampling, history=use_long_hist
     )  # None # first order growth model
 
     # Division models (only look at children distance & growth) -> divisions are restricted by combinations
