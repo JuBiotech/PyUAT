@@ -700,7 +700,7 @@ def use_nearest_neighbor(
     data: dict[str, np.ndarray],
     subsampling: int,
     mig_growth_scale=0.05,
-    mig_movement_scale=20.0,
+    mig_movement_scale=20,
     div_growth_scale: float = None,
     div_movement_scale=20.0,
     **kwargs,
@@ -813,6 +813,38 @@ def use_first_order_model(
     ]
 
     return constant_new_models, constant_end_models, migration_models, split_models
+
+
+def add_growth_model(
+    data,
+    subsampling,
+    mig_growth_scale=0.05,
+    div_growth_scale=None,
+    mig_growth_mean=1.008,
+    div_growth_mean=1.016,
+    **kwargs,
+):
+
+    new_models, end_models, migration_models, split_models = use_first_order_model(
+        data=data, subsampling=subsampling, **kwargs
+    )
+
+    if div_growth_scale is None:
+        div_growth_scale = 2 * mig_growth_scale
+
+    # growth models:
+    continue_growth_model = create_growth_model(
+        data, mean=mig_growth_mean**subsampling, scale=mig_growth_scale * subsampling
+    )
+    split_growth_model = create_growth_model(
+        data, mean=div_growth_mean**subsampling, scale=div_growth_scale * subsampling
+    )
+
+    # replace first-order growth models by bioligacally motivated models
+    migration_models[1] = continue_growth_model
+    split_models[1] = split_growth_model
+
+    return new_models, end_models, migration_models, split_models
 
 
 def make_assignmet_generators(
