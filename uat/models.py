@@ -39,7 +39,7 @@ class ModelExecutor:
         values = self.quantity_computer(tracking, source_index, target_index, self.df)
 
         return values
-    
+
     def __repr__(self):
         return f"ModelExecutor({self.name})"
 
@@ -101,7 +101,7 @@ def predict_movement(
     )
 
     # get the centroids of the walks
-    #walk_centroids = backend.compute_centroids(parents, all_centroids)
+    # walk_centroids = backend.compute_centroids(parents, all_centroids)
 
     # compute the average movement along the walks
     avg_movement = backend.compute_avg_property_along_walk(
@@ -122,6 +122,7 @@ def predict_movement(
 
     return source_predictions
 
+
 def predict_property(
     tracking,
     source_index,
@@ -129,7 +130,7 @@ def predict_property(
     history: int,
     alpha=None,
     stop_at_split=True,
-    property_name="area"
+    property_name="area",
 ):
     """
     Predicts the development of a single-cell property based on its past movements (in history timesteps). If no history is available assume no development.
@@ -155,7 +156,7 @@ def predict_property(
     )
 
     # get the centroids of the walks
-    #walk_centroids = backend.compute_centroids(parents, all_centroids)
+    # walk_centroids = backend.compute_centroids(parents, all_centroids)
 
     # compute the average movement along the walks
     avg_development = backend.compute_avg_property_along_walk(
@@ -188,15 +189,21 @@ def first_order_growth(
     stop_at_split=True,
 ):
     # extract all areas
-    all_areas = df[
-        "area"
-    ]
+    all_areas = df["area"]
 
-    #assert target_index.shape[1] == 1
+    # assert target_index.shape[1] == 1
 
     # predict area development
-    source_predictions = predict_property(tracking, source_index=source_index, df=df, history=history, stop_at_split=stop_at_split, property_name="area", alpha=alpha)
-    #source_predictions = np.repeat(source_predictions, target_index.shape[1], axis=0)
+    source_predictions = predict_property(
+        tracking,
+        source_index=source_index,
+        df=df,
+        history=history,
+        stop_at_split=stop_at_split,
+        property_name="area",
+        alpha=alpha,
+    )
+    # source_predictions = np.repeat(source_predictions, target_index.shape[1], axis=0)
 
     target_areas = all_areas[target_index]  # .to_numpy()[target_index]
 
@@ -231,57 +238,30 @@ def distance_to_pred_computer(
 
     """
     # fetch centroids
-    all_centroids = df[
-        "centroid"
-    ]  # np.array(df['centroid'].to_list(), dtype=np.float32)
+    all_centroids = df["centroid"]
 
-    # compute unique array
-    unique_sources, inverse_indexing = np.unique(source_index, return_inverse=True)
-
-    source_predictions = predict_property(tracking, source_index=source_index, df=df, history=history, stop_at_split=stop_at_split, property_name="centroid")
-
-    """
-    # perform walks from unique sources
-    parents = backend.compute_walks_upward(
-        tracking.parents, unique_sources, history, stop_at_split=stop_at_split
+    # predict position by movement estimation
+    source_predictions = predict_property(
+        tracking,
+        source_index=source_index,
+        df=df,
+        history=history,
+        stop_at_split=stop_at_split,
+        property_name="centroid",
+        alpha=alpha,
     )
 
-    # get the centroids of the walks
-    walk_centroids = backend.compute_centroids(parents, all_centroids)
+    # extract target positions (positions of cell detections in the next frame)
+    target_positions = all_centroids[target_index]
 
-    # compute the average movement along the walks
-    avg_movement = backend.compute_avg_property_along_walk(
-        parents, all_centroids, exp_moving_average=alpha
-    )
-
-    # predict the next position of the sources
-    pred_position = all_centroids[unique_sources] + avg_movement
-
-    # rearrange predicted positions to assignment shape
-    source_predictions = pred_position[inverse_indexing, :]
-
-    # for all the sources without history we assume no movement
-    pred_mask = np.all(source_predictions.mask, axis=1)
-    source_predictions[pred_mask, :] = all_centroids[
-        source_index[pred_mask].flatten(), :
-    ]
-    """
-
-    print(f"target index shape: {target_index.shape}")
-    # average target position when it is about divisions
-    target_positions = np.mean(all_centroids[target_index], axis=-2)
-    print(f"target pos shape: {target_positions.shape}")
-
-    #source_predictions = np.repeat(source_predictions, target_index.shape[1], axis=0)
-
-    # compute distances with targets
+    # compute distances between predicitions and target positions
+    # we introduce a new dimensions because there can be multiple target positions (e.g. two for division into two children)
     assignment_distances = np.linalg.norm(
-        source_predictions - target_positions, axis=1
+        source_predictions[:, None, :] - target_positions, axis=-1
     )
 
-    #assignment_distances = assignment_distances.reshape((len(source_index), -1))
-
-    print("shape", assignment_distances.shape)
+    # Sum multiple distances distances
+    assignment_distances = np.sum(assignment_distances, axis=1)
 
     # return the distances
     return assignment_distances
