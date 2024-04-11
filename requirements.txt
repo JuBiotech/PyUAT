@@ -1,4 +1,4 @@
-acia @ git+https://gitlab+deploy-token-246:1vChivReKYN9aTgQEw-g@jugit.fz-juelich.de/j.seiffarth/acia.git@d4eaa01dbfbe1849443771e7507a91b62af3a23d
+acia @ git+https://gitlab+deploy-token-246:1vChivReKYN9aTgQEw-g@jugit.fz-juelich.de/j.seiffarth/acia.git@28c6d2a3fa16de5b29872913cb7534ee7dff5110
 tensor_tree @ git+https://gitlab+deploy-token-245:LAxSyBpyNC8fvQrzrmng@jugit.fz-juelich.de/IBG-1/ModSim/tensortree.git@91b88871b6d8617ef0eeed2e128ecbd860075b1e
 mip>=1.15.0
 ray
