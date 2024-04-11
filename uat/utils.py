@@ -11,8 +11,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 import ray
+from acia.base import Overlay
 from acia.segm.formats import parse_simple_segmentation
-from acia.viz import VideoExporter
+from acia.viz import VideoExporter2
 from pandas import DataFrame
 from PIL import Image, ImageDraw
 from scipy.spatial.distance import cdist
@@ -349,6 +350,48 @@ def load_single_cell_information(input_file: Path) -> DataFrame:
     return df, all_detections
 
 
+def extract_single_cell_information(ov: Overlay) -> DataFrame:
+
+    # ov = Overlay([cont for cont in ov if cont.frame <= 100])
+    all_detections = ov.contours
+
+    # split_proposals, major_axes = compute_split_proposals(all_detections)
+
+    # create the main data frame
+    entries = []
+    for _, det in enumerate(all_detections):
+        # compute the axis info
+        (
+            width,
+            length,
+            major_axis,
+            minor_axis,
+            major_extents,
+            minor_extents,
+        ) = compute_axes_info(det.polygon)
+
+        # add entry for this cell
+        entries.append(
+            {
+                "area": det.area,
+                "centroid": np.array(det.center),
+                "perimeter": det.polygon.length,
+                "id": det.id,
+                "frame": det.frame,
+                "contour": np.array(det.coordinates),
+                "width": width,
+                "length": length,
+                "major_axis": major_axis,
+                "minor_axis": minor_axis,
+                "major_extents": major_extents,
+                "minor_extents": minor_extents,
+            }
+        )
+    df = DataFrame(entries)
+
+    return df, all_detections
+
+
 def compute_axes_info(polygon):
     """Extract information about the major and minor axes from a single detection
 
@@ -428,9 +471,8 @@ def render_tracking_video(
     image_source,
     overlay_iterator,
     tracking,
-    output_file="track.avi",
+    output_file="track.mp4",
     framerate=3,
-    codec="MJPG",
 ):
     """Render tracking video
 
@@ -440,7 +482,6 @@ def render_tracking_video(
         tracking (_type_): tracking graph
         output_file (str, optional): Output file for the video. Defaults to "track.avi".
         framerate (int, optional): Rendering framerate (fps). Defaults to 3.
-        codec (str, optional): fourcc codec (e.g. MJPG, VP09, ...). Defaults to "MJPG".
     """
 
     overlay_iterator, consumer = tee(overlay_iterator)
@@ -451,7 +492,7 @@ def render_tracking_video(
     )
     contour_lookup = {cont.id: cont for cont in all_contours}
 
-    with VideoExporter(str(output_file), framerate, codec) as ve:
+    with VideoExporter2.default_vp9(str(output_file), framerate) as ve:
         for frame, (image, overlay) in enumerate(
             tqdm(zip(image_source, overlay_iterator))
         ):
