@@ -94,7 +94,9 @@ class SimpleTracking:
 
         # return the new tracking
         return SimpleTracking(
-            new_parents, active_assignments=active_assignments, parent_id=self.id
+            new_parents,
+            active_assignments=self.active_assignments + [active_assignments],
+            parent_id=self.id,
         )
 
     def createIndexTracking(self):
