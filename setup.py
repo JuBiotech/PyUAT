@@ -10,9 +10,7 @@ with open("README.md", encoding="utf-8") as readme_file:
 with open("requirements.txt", encoding="utf-8") as req_file:
     requirements = req_file.read().splitlines()
 
-test_requirements = [
-    "pytest>=3",
-]
+test_requirements = ["pytest>=3", "wget"]
 
 setup(
     author="Johannes Seiffarth",
