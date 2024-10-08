@@ -22,7 +22,7 @@ from uat.core import simpleTracking
 from uat.utils import extract_single_cell_information, save_tracking
 
 
-def setup_assignment_generators(df, subsampling_factor: int):
+def setup_assignment_generators(df, subsampling_factor: int, model: str = "NN"):
 
     # arrange single-cell information into numpy arrays (greatly increases the speed, as data can be immediately indexed)
     data = {
@@ -33,15 +33,36 @@ def setup_assignment_generators(df, subsampling_factor: int):
     }
 
     # create biologically motivated models
-    # constant_new_models, constant_end_models, migration_models, split_models = add_growth_model(data=data, subsampling=subsampling_factor) #add_angle_models(data=data, subsampling=subsampling_factor) #use_first_order_model(data=data, subsampling=subsampling_factor) #use_nearest_neighbor(data=data, subsampling=subsampling_factor) #
-    (
-        constant_new_models,
-        constant_end_models,
-        migration_models,
-        split_models,
-    ) = use_first_order_model(data=data, subsampling=subsampling_factor)
-    # constant_new_models, constant_end_models, migration_models, split_models = use_nearest_neighbor(data=data, subsampling=subsampling_factor)
-    # constant_new_models, constant_end_models, migration_models, split_models = add_angle_models(data=data, subsampling=subsampling_factor)
+    if model == "NN":
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = use_nearest_neighbor(data=data, subsampling=subsampling_factor)
+    elif model == "FO":
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = use_first_order_model(data=data, subsampling=subsampling_factor)
+    elif model == "FO+G":
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = add_growth_model(
+            data=data, subsampling=subsampling_factor
+        )  # add_angle_models(data=data, subsampling=subsampling_factor) #use_first_order_model(data=data, subsampling=subsampling_factor) #use_nearest_neighbor(data=data, subsampling=subsampling_factor) #
+    elif model == "FO+O":
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = add_angle_models(data=data, subsampling=subsampling_factor)
 
     # create the assignment candidate generators
     assignment_generators = make_assignmet_generators(
@@ -96,7 +117,7 @@ class TestTracking(unittest.TestCase):
                 "https://fz-juelich.sciebo.de/s/Xge7fj56QM5ev7q/download"
             )
 
-    def test_tracking(self):
+    def tracking(self, model="NN"):
         tracking_file = self.segmentation
 
         subsampling_factor = 1
@@ -120,7 +141,7 @@ class TestTracking(unittest.TestCase):
 
         print("Setup assignment generators...")
         assignment_generators = setup_assignment_generators(
-            df, subsampling_factor=subsampling_factor
+            df, subsampling_factor=subsampling_factor, model=model
         )
 
         print("Perform tracking...")
@@ -141,6 +162,9 @@ class TestTracking(unittest.TestCase):
         print("time for tracking", end - start)
 
         save_tracking(res[0], all_detections, output_file)
+
+    def test_tracking(self):
+        self.tracking(model="NN")
 
 
 if __name__ == "__main__":
