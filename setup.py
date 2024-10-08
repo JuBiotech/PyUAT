@@ -22,9 +22,7 @@ setup(
         "console_scripts": [],
     },
     install_requires=requirements,
-    extras_require={
-        "gurobi": ["gurobipy>=5.9.3"],
-    },
+    extras_require={"gurobi": ["gurobipy>=5.9.3"], "test": test_requirements},
     license="MIT license",
     long_description=readme,
     include_package_data=True,
