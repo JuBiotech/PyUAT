@@ -6,13 +6,9 @@ from pathlib import Path
 
 import wget
 
+from uat.config import setup_assignment_generators
 from uat.core import simpleTracking
-from uat.utils import (
-    extract_single_cell_information,
-    load_data,
-    save_tracking,
-    setup_assignment_generators,
-)
+from uat.utils import extract_single_cell_information, load_data, save_tracking
 
 
 class TestTracking(unittest.TestCase):
