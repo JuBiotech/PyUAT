@@ -11,16 +11,29 @@ from itertools import tee
 from pathlib import Path
 
 import cv2
+import networkx as nx
 import numpy as np
+import pandas as pd
 import ray
 from acia.base import Overlay
 from acia.segm.formats import parse_simple_segmentation
+from acia.tracking.formats import parse_simple_tracking
+from acia.tracking.utils import subsample_lineage
 from acia.viz import VideoExporter2
 from pandas import DataFrame
 from PIL import Image, ImageDraw
 from scipy.spatial.distance import cdist
 from tqdm.auto import tqdm
 from tqdm.contrib.concurrent import process_map
+
+from uat.assignment import SimpleAssignmentGenerator
+from uat.config import (
+    add_angle_models,
+    add_growth_model,
+    make_assignmet_generators,
+    use_first_order_model,
+    use_nearest_neighbor,
+)
 
 
 def product(list1):
@@ -494,7 +507,7 @@ def render_tracking_video(
     )
     contour_lookup = {cont.id: cont for cont in all_contours}
 
-    with VideoExporter2.default_vp9(str(output_file), framerate) as ve:
+    with VideoExporter2.fast_vp9(str(output_file), framerate) as ve:
         for frame, (image, overlay) in enumerate(
             tqdm(zip(image_source, overlay_iterator))
         ):
@@ -551,3 +564,102 @@ def render_tracking_video(
 
             # cv2.imwrite(str(output_folder / f"image{frame:03}.png"), np_image)
             ve.write(np_image)
+
+
+def load_data(
+    tracking_file: Path, subsampling_factor: int, end_frame: int
+) -> tuple[Overlay, nx.DiGraph]:
+    """Load simple tracking ground truth
+
+    Args:
+        tracking_file (Path): Path to json file
+        subsampling_factor (int): the subsampling factor that shall be applied
+        end_frame (int): Cut-off frame
+
+    Returns:
+        tuple[Overlay, nx.DiGraph]: segmentation overlay and tracking graph
+    """
+    with open(tracking_file, encoding="utf-8") as tr_input:
+        overlay, tracking_graph = parse_simple_tracking(tr_input.read())
+
+    sub_tracking_graph = subsample_lineage(tracking_graph, subsampling_factor)
+
+    nds_to_delete = []
+    for node in sub_tracking_graph.nodes:
+        if sub_tracking_graph.nodes[node]["frame"] > end_frame:
+            nds_to_delete.append(node)
+
+    sub_tracking_graph.remove_nodes_from(nds_to_delete)
+
+    sub_nodes = set(sub_tracking_graph.nodes)
+
+    sub_overlay = Overlay([cont for cont in overlay if cont.id in sub_nodes])
+
+    return sub_overlay, sub_tracking_graph
+
+
+def setup_assignment_generators(
+    df: pd.DataFrame, subsampling_factor: int, model: str = "NN"
+) -> list[SimpleAssignmentGenerator]:
+    """Create the assignment generators and cell models for scoring tracking assignments
+
+    Args:
+        df (pd.DataFrame): data frame with single-cell data from segementation
+        subsampling_factor (int): subsampling factor
+        model (str, optional): the model configuration for the tracking. Defaults to "NN".
+
+    Returns:
+        list[SimpleAssignmentGenerator]: List of assignment generators equipped with cell models
+    """
+
+    # arrange single-cell information into numpy arrays (greatly increases the speed, as data can be immediately indexed)
+    data = {
+        "area": np.array(df["area"].to_list(), dtype=np.float32),
+        "centroid": np.array(df["centroid"].to_list(), dtype=np.float32),
+        "major_extents": np.array(df["major_extents"].to_list(), dtype=np.float32),
+        "major_axis": np.array(df["major_axis"].to_list(), dtype=np.float32),
+    }
+
+    # create biologically motivated models
+    if model == "NN":
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = use_nearest_neighbor(data=data, subsampling=subsampling_factor)
+    elif model == "FO":
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = use_first_order_model(data=data, subsampling=subsampling_factor)
+    elif model == "FO+G":
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = add_growth_model(
+            data=data, subsampling=subsampling_factor
+        )  # add_angle_models(data=data, subsampling=subsampling_factor) #use_first_order_model(data=data, subsampling=subsampling_factor) #use_nearest_neighbor(data=data, subsampling=subsampling_factor) #
+    elif model == "FO+O":
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = add_angle_models(data=data, subsampling=subsampling_factor)
+
+    # create the assignment candidate generators
+    assignment_generators = make_assignmet_generators(
+        df=df,
+        data=data,
+        constant_new_models=constant_new_models,
+        constant_end_models=constant_end_models,
+        migration_models=migration_models,
+        split_models=split_models,
+    )
+
+    return assignment_generators
