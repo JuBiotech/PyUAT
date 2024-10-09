@@ -163,8 +163,17 @@ class TestTracking(unittest.TestCase):
 
         save_tracking(res[0], all_detections, output_file)
 
-    def test_tracking(self):
+    def test__nn_tracking(self):
         self.tracking(model="NN")
+
+    def test__fo_tracking(self):
+        self.tracking(model="FO")
+
+    def test__fo_g_tracking(self):
+        self.tracking(model="FO+G")
+
+    def test__fo_o_tracking(self):
+        self.tracking(model="FO+O")
 
 
 if __name__ == "__main__":
