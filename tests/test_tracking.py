@@ -87,6 +87,12 @@ class TestTracking(unittest.TestCase):
     def test__fo_o_tracking(self):
         self.tracking(model="FO+O")
 
+    def test__fo_dd_tracking(self):
+        self.tracking(model="FO+DD")
+
+    def test__fo_g_o_dd_tracking(self):
+        self.tracking(model="FO+G+O+DD")
+
 
 if __name__ == "__main__":
     unittest.main()
