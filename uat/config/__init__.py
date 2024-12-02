@@ -908,6 +908,8 @@ def setup_assignment_generators(
         "major_axis": np.array(df["major_axis"].to_list(), dtype=np.float32),
     }
 
+    subsampling = subsampling_factor
+
     # create biologically motivated models
     if model == "NN":
         (
@@ -939,6 +941,46 @@ def setup_assignment_generators(
             migration_models,
             split_models,
         ) = add_angle_models(data=data, subsampling=subsampling_factor)
+    elif model == "FO+DD":
+        # make standard models
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = use_first_order_model(data=data, subsampling=subsampling)
+
+        # add children distance model
+        split_children_distance_model = create_split_children_distance_model(
+            data, prob=lambda vs: halfnorm.logsf(vs, loc=0, scale=3 * subsampling)
+        )
+        split_models += [split_children_distance_model]
+
+    elif model == "FO+G+O+DD":
+
+        (
+            constant_new_models,
+            constant_end_models,
+            migration_models,
+            split_models,
+        ) = add_growth_model(data=data, subsampling=subsampling_factor)
+
+        # add children distance model
+        split_children_distance_model = create_split_children_distance_model(
+            data, prob=lambda vs: halfnorm.logsf(vs, loc=0, scale=3 * subsampling)
+        )
+        split_models += [split_children_distance_model]
+
+        # add orientation models
+        continue_angle_model = create_continue_angle_model(
+            data, prob=partial(prob_cont_angles, scale=20 * subsampling)
+        )
+        split_children_angle_model = create_split_children_angle_model(
+            data, prob=partial(prob_angles, loc=135, scale=20 * subsampling)
+        )
+
+        migration_models += [continue_angle_model]
+        split_models += [split_children_angle_model]
 
     # create the assignment candidate generators
     assignment_generators = make_assignmet_generators(
