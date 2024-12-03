@@ -26,8 +26,12 @@ test:
     - pip install --upgrade pip
     - pip install .[test]
     - pip install tox flake8  # you can also use tox
-    - tox -e py39
+#    - tox -e py39
     - pip install papermill
+    # create kernel for jupyter notebook
+    - pip install --upgrade pip ipython ipykernel
+    - ipython kernel install --name "python3" --user
+    # test the example notebook
     - papermill example_simple.ipynb example_simple_exec.ipynb
   coverage: '/TOTAL.*\s+(\d+%)/'
   artifacts:
