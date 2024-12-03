@@ -1,4 +1,8 @@
-# Uncertainty-Aware Tracking (UAT)
+# Python Uncertainty-Aware Tracking (PyUAT)
+
+![coverage](https://jugit.fz-juelich.de/IBG-1/ModSim/imageanalysis/uat/badges/main/coverage.svg?job=coverage)
+![pipeline](https://jugit.fz-juelich.de/IBG-1/ModSim/imageanalysis/uat/badges/%{default_branch}/pipeline.svg)
+
 
 Efficient open-source Python implementation of the Uncertainty-Aware Tracking approach: [https://doi.org/10.1093/bioinformatics/bty776](https://doi.org/10.1093/bioinformatics/bty776)
 
