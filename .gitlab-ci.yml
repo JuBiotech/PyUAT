@@ -21,6 +21,8 @@ stages:
 test:
   image: continuumio/miniconda3
   stage: test
+  tags:
+    - largemem
   script:
     - conda install -y python=3.9 gcc -c conda-forge
     - pip install --upgrade pip
