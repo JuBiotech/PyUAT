@@ -212,13 +212,13 @@ def first_order_growth(
     # sum up the target areas
     target_joint_area = np.sum(target_areas, axis=-1)
 
-    print("Dimensions:")
-    print(source_predictions.shape, target_joint_area.shape)
+    # print("Dimensions:")
+    # print(source_predictions.shape, target_joint_area.shape)
 
     # compute area difference between sources and targets
     assignment_distances = source_predictions - target_joint_area
 
-    print(assignment_distances.shape)
+    # print(assignment_distances.shape)
 
     # return the distances
     return assignment_distances

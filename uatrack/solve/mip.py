@@ -1,8 +1,6 @@
 """Utilizes the MIP wrapper library for solving assignment problems
 """
 
-import logging
-
 import numpy as np
 from mip import BINARY, CBC, Model, maximize, minimize, xsum
 
@@ -104,7 +102,8 @@ class SimpleMIPSolver:
     def setCutOff(self, cutOff: float):
         # pylint: disable=unused-argument,no-self-use
         # self.m.Params.cutOff = cutOff
-        logging.warning("Not supported!")
+        # logging.warning("Not supported!")
+        pass
 
     def generateSolution(self, i):
 
@@ -159,6 +158,6 @@ class SimpleMIPSolver:
 
         # self.m.optimize()
         # not yet implemented
-        logging.warning("This is not implemented")
+        # logging.warning("This is not implemented")
         return [self.solve()]
         # return self.generateAllSolutions()

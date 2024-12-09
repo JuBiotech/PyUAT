@@ -15,3 +15,5 @@ disable =
     W0622, # redefining builtin is okay
     R0801, # code-duplicity: could not be solved for solvers
     C0302, # too-many-lines
+    W1203, # logging-fstring-interpolation
+    C0209, # logging-not-lazy

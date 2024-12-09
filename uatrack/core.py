@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import multiprocessing
 import time
 from functools import reduce
@@ -295,7 +296,7 @@ def simpleExpansion(
     sol_probabilities = [Probability(log_prob=sol[1]) for sol in all_solutions]
 
     if len(sol_probabilities) == 0:
-        print("No expansions found")
+        logging.warning("No expansions found")
         return []
 
     sampled_sol_indices = sample_from_probabilities(sol_probabilities, cluster.size)
@@ -317,7 +318,7 @@ def simpleExpansion(
         )
         new_cluster_candidates.append((c, weight * size))
 
-    print(
+    logging.info(
         f"Expansion Step {ass_gen_dur + opt_solve_dur:.2f}s (assgen: {ass_gen_dur:.2f}s, solve: {opt_solve_dur:.2f}s)"
     )
 
@@ -342,7 +343,7 @@ def computeBestExpansions(
         it = current_cluster_dist
 
         if report_progress:
-            it = tqdm(current_cluster_dist)
+            it = tqdm(current_cluster_dist, leave=False)
 
         for cluster in it:
             single_solutions.append(
@@ -381,11 +382,11 @@ def computeBestExpansions(
         )  # ray.get(new_cluster_candidates_and_weights)
 
         if report_progress:
-            ray_it = tqdm(ray_it, total=len(single_solutions))
+            ray_it = tqdm(ray_it, total=len(single_solutions), leave=False)
 
         split_solutions = list(zip(*list(ray_it)))
 
-        print(split_solutions[0])
+        logging.info(split_solutions[0])
         order = np.argsort(np.array(list(split_solutions[0]), dtype=np.int32))
 
         # reorder single solutions so that they match the cluster list (this is necessary due to multiprocessing)
@@ -452,7 +453,7 @@ def computeAllExpansionsAdv(
     truncation_mask = individualBestCumLogProbs < cutOff
     pruned_clusters = np.sum(truncation_mask)
 
-    print(f"Possible pruned clusters: {pruned_clusters}")
+    logging.info(f"Possible pruned clusters: {pruned_clusters}")
 
     # for the solution pool we must compute the relative gap between the best solution and the worst solution: worst = best + gap * best
     individual_pool_gaps = (
@@ -463,7 +464,7 @@ def computeAllExpansionsAdv(
     pruned_clusters_dist = np.array(current_cluster_dist)[~truncation_mask]
     individual_pool_gaps = individual_pool_gaps[~truncation_mask]
 
-    print(individual_pool_gaps)
+    logging.info(individual_pool_gaps)
 
     return computeAllExpansions(
         pruned_clusters_dist,
@@ -501,7 +502,7 @@ def computeAllExpansions(
         it = current_cluster_dist
 
         if report_progress:
-            it = tqdm(current_cluster_dist)
+            it = tqdm(current_cluster_dist, leave=False)
 
         for i, cluster in enumerate(it):
             new_cluster_candidates_and_weights += simpleExpansion(
@@ -543,7 +544,9 @@ def computeAllExpansions(
         )  # ray.get(new_cluster_candidates_and_weights)
 
         if report_progress:
-            ray_it = tqdm(ray_it, total=len(new_cluster_candidates_and_weights))
+            ray_it = tqdm(
+                ray_it, total=len(new_cluster_candidates_and_weights), leave=False
+            )
 
         new_cluster_candidates_and_weights = reduce(lambda a, b: a + b, ray_it)
     else:
@@ -604,7 +607,7 @@ def simpleTracking(
     if frames is None:
         frames = np.unique(df["frame"])
 
-    print("frames", frames)
+    logging.info(f"Frames: {frames}")
 
     # create initial empty cluster with full size and probability 1
     current_cluster_dist = [
@@ -622,9 +625,11 @@ def simpleTracking(
     try:
         # loop over consecutive frames
         for frame_index, (source_frame, target_frame) in enumerate(
-            tqdm(zip(frames, frames[1:]), total=len(frames) - 1)
+            tqdm(
+                zip(frames, frames[1:]), total=len(frames) - 1, desc="Perform tracking"
+            )
         ):
-            print("frames", source_frame, target_frame)
+            logging.info(f"Frames: {source_frame} -> {target_frame}")
 
             # find source and target detections
             sources = df[df["frame"] == source_frame].index.to_numpy(
@@ -632,13 +637,13 @@ def simpleTracking(
             )  # TODO find only trackends
             targets = df[df["frame"] == target_frame].index.to_numpy(dtype=np.int32)
 
-            print(f"trackEnds {len(sources)} --> {(len(targets))} detections")
+            logging.info(f"trackEnds {len(sources)} --> {(len(targets))} detections")
 
             new_cluster_candidates_and_weights: list[
                 tuple[SimpleCluster, Probability]
             ] = []
 
-            print("Num clusters", len(current_cluster_dist))
+            logging.info("Num clusters: {len(current_cluster_dist)}")
 
             new_cluster_candidates_and_weights = computeAllExpansionsAdv(
                 current_cluster_dist,
@@ -770,4 +775,4 @@ class SimpleTrackingReporter:
             Path(self.output_folder) / "tracking.json", "w", encoding="utf-8"
         ) as output_file:
             json.dump(data_structure, output_file)
-        print(self.final_cluster.tracking.createIndexTracking().edges)
+        logging.info(self.final_cluster.tracking.createIndexTracking().edges)

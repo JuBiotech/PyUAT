@@ -145,7 +145,7 @@ class SimpleGurobiSolver:
 
         nSolutions = self.m.SolCount
 
-        print(f"Number of solutions: {nSolutions}")
+        logging.info(f"Number of solutions: {nSolutions}")
 
         if self.m.Status == GRB.TIME_LIMIT:
             logging.warning("Time limit reached! Solutions found %d", nSolutions)
