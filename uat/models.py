@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from tensor_tree.impl_np import NP_Impl
+from tensor_walks.impl_np import NP_Impl
 
 backend = NP_Impl()
 
@@ -322,7 +322,7 @@ def compute_dist_to_last_split(tracking, walk_matrix, no_split_behavior="mask"):
 
 
 def split_dist_computer(
-    tracking, source_index, target_index, df, max_time_consideration=30
+    tracking, source_index, target_index, df, max_time_consideration=100
 ):
     """
     Computes the number of timesteps to the last division event
