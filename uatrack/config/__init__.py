@@ -9,14 +9,14 @@ import pandas as pd
 from scipy.stats import binom, halfnorm, norm
 from tensor_walks.impl_np import NP_Impl
 
-from uat.assignment import (
+from uatrack.assignment import (
     SimpleAssignmentGenerator,
     SimpleContinueGenerator,
     SimpleEndTrackAssGenerator,
     SimpleNewAssGenerator,
     SimpleSplitGenerator,
 )
-from uat.models import (
+from uatrack.models import (
     ConstantModel,
     ModelExecutor,
     area_growth_computer,
@@ -25,7 +25,7 @@ from uat.models import (
     predict_property,
     split_dist_computer,
 )
-from uat.utils import ContourDistanceCache, NearestNeighborCache
+from uatrack.utils import ContourDistanceCache, NearestNeighborCache
 
 backend = NP_Impl()
 

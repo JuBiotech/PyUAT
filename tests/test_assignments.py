@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from uat.assignment import SimpleNewAssGenerator, filter_targets
+from uatrack.assignment import SimpleNewAssGenerator, filter_targets
 
 
 class TestAssignmentGenerators(unittest.TestCase):

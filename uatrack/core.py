@@ -16,9 +16,9 @@ from networkx import DiGraph
 from pandas import DataFrame
 from tqdm.auto import tqdm
 
-from uat.sampling import sample_from_probabilities
-from uat.solve.gurobi import SimpleGurobiSolver
-from uat.solve.mip import SimpleMIPSolver
+from uatrack.sampling import sample_from_probabilities
+from uatrack.solve.gurobi import SimpleGurobiSolver
+from uatrack.solve.mip import SimpleMIPSolver
 
 from .sampling import Probability
 from .utils import ContourDistanceCache

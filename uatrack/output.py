@@ -9,7 +9,7 @@ from pathlib import Path
 
 from pandas import DataFrame
 
-from uat.core import SimpleCluster
+from uatrack.core import SimpleCluster
 
 
 class SimpleTrackingReporter:

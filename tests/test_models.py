@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from uat.models import predict_movement, predict_property
+from uatrack.models import predict_movement, predict_property
 
 
 class FakeTracking:
