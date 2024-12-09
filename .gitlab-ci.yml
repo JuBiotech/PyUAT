@@ -84,18 +84,3 @@ upload_package:
   artifacts:
     paths:
       - dist/
-
-
-
-pages:
-  stage: deploy
-  extends: .deploy_common
-  script:
-    - pip install sphinx sphinx-rtd-theme pint
-    - cd docs ; make html
-    - mv _build/html/ ../public/
-  artifacts:
-    paths:
-      - public
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
