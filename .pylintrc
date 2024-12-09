@@ -14,3 +14,4 @@ disable =
     W0511, # fixmes okay
     W0622, # redefining builtin is okay
     R0801, # code-duplicity: could not be solved for solvers
+    C0302, # too-many-lines

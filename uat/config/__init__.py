@@ -7,7 +7,7 @@ from functools import partial
 import numpy as np
 import pandas as pd
 from scipy.stats import binom, halfnorm, norm
-from tensor_tree.impl_np import NP_Impl
+from tensor_walks.impl_np import NP_Impl
 
 from uat.assignment import (
     SimpleAssignmentGenerator,
@@ -792,16 +792,24 @@ def use_first_order_model(
     # First order movement models
     continue_movement_model = create_continue_temp_position_model(
         data,
-        lambda val: halfnorm.logsf(val, scale=fo_mov_scale * subsampling),
+        lambda val: halfnorm.logsf(val, scale=20 + fo_mov_scale * subsampling),
         history=use_long_hist,
     )  # first order movement model
     continue_growth_model = create_first_order_growth_model(
-        data, fo_growth_scale * subsampling, history=use_long_hist
+        data, 50 + fo_growth_scale * subsampling, history=use_long_hist
     )  # None # first order growth model
 
     # Division models (only look at children distance & growth) -> divisions are restricted by combinations
-    split_movement_model = continue_movement_model  # create_continue_temp_position_model(data, lambda val: halfnorm.logsf(val, scale=10*subsampling), history=1) #create_split_children_distance_model(data, prob=lambda vs: halfnorm.logsf(vs, loc=0, scale=3*subsampling)) #None # first order movement model
-    split_growth_model = continue_growth_model  # first order growth model (e.g. $(sum child area)=$(historical growth rate) * 2)
+    split_movement_model = create_continue_temp_position_model(
+        data,
+        lambda val: halfnorm.logsf(
+            val, loc=0, scale=20 + 2 * fo_mov_scale * subsampling
+        ),
+        history=use_long_hist,
+    )  # create_continue_temp_position_model(data, lambda val: halfnorm.logsf(val, scale=10*subsampling), history=1) #create_split_children_distance_model(data, prob=lambda vs: halfnorm.logsf(vs, loc=0, scale=3*subsampling)) #None # first order movement model
+    split_growth_model = create_first_order_growth_model(
+        data, 50 + 2 * fo_growth_scale * subsampling, history=use_long_hist
+    )  # first order growth model (e.g. $(sum child area)=$(historical growth rate) * 2)
 
     # collect models
     migration_models = [
