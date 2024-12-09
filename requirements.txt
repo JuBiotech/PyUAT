@@ -1,4 +1,4 @@
-acia @ git+https://gitlab+deploy-token-246:1vChivReKYN9aTgQEw-g@jugit.fz-juelich.de/j.seiffarth/acia.git@9bc188285e1208607e8df3028a61057dac8aee38 #acia==0.2.36
+acia @ git+https://gitlab+deploy-token-246:1vChivReKYN9aTgQEw-g@jugit.fz-juelich.de/j.seiffarth/acia.git@7b7a33c835f9aa39583afa4ce13410d84c03f4a6 #acia==0.2.36
 tensor_walks==0.0.7
 mip>=1.15.0
 ray
