@@ -6,7 +6,7 @@
 
 # Official language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/library/python/tags/
-image: python:3.9
+image: jugit-registry.fz-juelich.de/ibg-1/modsim/imageanalysis/uat/python:3.9
 
 # Change pip's cache directory to be inside the project directory since we can
 # only cache local items.
@@ -19,7 +19,7 @@ stages:
   - deploy
 
 test:
-  image: continuumio/miniconda3
+  image: jugit-registry.fz-juelich.de/ibg-1/modsim/imageanalysis/uat/miniconda3 #continuumio/miniconda3
   stage: test
   tags:
     - bigmem
