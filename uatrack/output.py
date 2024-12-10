@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import time
 from pathlib import Path
 
 from pandas import DataFrame
 
-from uat.core import SimpleCluster
+from uatrack.core import SimpleCluster
 
 
 class SimpleTrackingReporter:
@@ -62,8 +63,10 @@ class SimpleTrackingReporter:
             format_version="0.0.1",
         )
 
-        with open(
-            Path(self.output_folder) / "tracking.json", "w", encoding="utf-8"
+        print(self.output_folder)
+
+        with gzip.open(
+            Path(self.output_folder) / "tracking.json.gz", "wt"
         ) as output_file:
             json.dump(data_structure, output_file)
-        print(self.final_cluster.tracking.createIndexTracking().edges)
+        # print(self.final_cluster.tracking.createIndexTracking().edges)

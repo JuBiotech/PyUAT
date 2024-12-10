@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import multiprocessing
 import time
 from functools import reduce
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import ray
-import tqdm
 from networkx import DiGraph
 from pandas import DataFrame
+from tqdm.auto import tqdm
 
-from uat.sampling import sample_from_probabilities
-from uat.solve.mip import SimpleMIPSolver
+from uatrack.sampling import sample_from_probabilities
+from uatrack.solve.gurobi import SimpleGurobiSolver
+from uatrack.solve.mip import SimpleMIPSolver
 
 from .sampling import Probability
 from .utils import ContourDistanceCache
@@ -92,7 +95,9 @@ class SimpleTracking:
 
         # return the new tracking
         return SimpleTracking(
-            new_parents, active_assignments=active_assignments, parent_id=self.id
+            new_parents,
+            active_assignments=self.active_assignments + [active_assignments],
+            parent_id=self.id,
         )
 
     def createIndexTracking(self):
@@ -163,7 +168,11 @@ def simpleExpansionRay(
 
 @ray.remote
 def singleSolutionRay(
-    cluster: SimpleCluster, sources, targets, assignment_generators: list, index=int
+    cluster: SimpleCluster,
+    sources: npt.ArrayLike[np.uint32],
+    targets: npt.ArrayLike[np.uint32],
+    assignment_generators: list,
+    index=int,
 ):
     return index, singleSolution(cluster, sources, targets, assignment_generators)
 
@@ -192,15 +201,20 @@ def generateAssignments(
     return all_assignments
 
 
-def buildMIPProblem(all_assignments, cutOff=None):
+def buildMIPProblem(all_assignments, cutOff=None, solver_name="GRB"):
     """
     builds the integer program from set of assignments
 
     all_assignments: list of different types of assignments
     cutOff: log value of solution search cutOff
     """
-    # build MIP solver
-    solver = SimpleMIPSolver(all_assignments)
+
+    if solver_name == "GRB":
+        # build MIP solver using gurobipy
+        solver = SimpleGurobiSolver(all_assignments)
+    else:
+        # build mip solver using mip (pypi library)
+        solver = SimpleMIPSolver(all_assignments, solver_name=solver_name)
 
     if cutOff:
         solver.setCutOff(cutOff)
@@ -209,7 +223,11 @@ def buildMIPProblem(all_assignments, cutOff=None):
 
 
 def singleSolution(
-    cluster: SimpleCluster, sources, targets, assignment_generators: list
+    cluster: SimpleCluster,
+    sources,
+    targets,
+    assignment_generators: list,
+    mip_method="auto",
 ):
     """
     Computes the best solution for an expansion
@@ -226,7 +244,7 @@ def singleSolution(
     )
 
     # build integer linear problem
-    solver = buildMIPProblem(all_assignments)
+    solver = buildMIPProblem(all_assignments, solver_name=mip_method)
 
     # solve for single solution
     max_sol = solver.solve()
@@ -242,6 +260,7 @@ def simpleExpansion(
     cutOff=None,
     max_num_solutions=50,
     pool_gap=None,
+    mip_method="auto",
 ) -> list[tuple[SimpleCluster, Probability]]:
     """
     Computes an expansion step for a cluster
@@ -261,7 +280,7 @@ def simpleExpansion(
 
     # compute cheapest tracking solutions with gurobi
     start = time.time()
-    solver = buildMIPProblem(all_assignments, cutOff)
+    solver = buildMIPProblem(all_assignments, cutOff, solver_name=mip_method)
     all_solutions = solver.populate(
         max_num_solutions=max_num_solutions, pool_gap=pool_gap
     )
@@ -277,7 +296,7 @@ def simpleExpansion(
     sol_probabilities = [Probability(log_prob=sol[1]) for sol in all_solutions]
 
     if len(sol_probabilities) == 0:
-        print("No expansions found")
+        logging.warning("No expansions found")
         return []
 
     sampled_sol_indices = sample_from_probabilities(sol_probabilities, cluster.size)
@@ -299,7 +318,7 @@ def simpleExpansion(
         )
         new_cluster_candidates.append((c, weight * size))
 
-    print(
+    logging.info(
         f"Expansion Step {ass_gen_dur + opt_solve_dur:.2f}s (assgen: {ass_gen_dur:.2f}s, solve: {opt_solve_dur:.2f}s)"
     )
 
@@ -314,6 +333,7 @@ def computeBestExpansions(
     num_cores,
     report_progress,
     use_ray,
+    mip_method="auto",
 ):
     single_solutions = []
 
@@ -323,11 +343,17 @@ def computeBestExpansions(
         it = current_cluster_dist
 
         if report_progress:
-            it = tqdm.tqdm(current_cluster_dist)
+            it = tqdm(current_cluster_dist, leave=False)
 
         for cluster in it:
             single_solutions.append(
-                singleSolution(cluster, sources, targets, assignment_generators)
+                singleSolution(
+                    cluster,
+                    sources,
+                    targets,
+                    assignment_generators,
+                    mip_method=mip_method,
+                )
             )
     elif use_ray:
         # prepare ray
@@ -356,11 +382,11 @@ def computeBestExpansions(
         )  # ray.get(new_cluster_candidates_and_weights)
 
         if report_progress:
-            ray_it = tqdm.tqdm(ray_it, total=len(single_solutions))
+            ray_it = tqdm(ray_it, total=len(single_solutions), leave=False)
 
         split_solutions = list(zip(*list(ray_it)))
 
-        print(split_solutions[0])
+        logging.info(split_solutions[0])
         order = np.argsort(np.array(list(split_solutions[0]), dtype=np.int32))
 
         # reorder single solutions so that they match the cluster list (this is necessary due to multiprocessing)
@@ -394,6 +420,7 @@ def computeAllExpansionsAdv(
     use_ray,
     truncation_threshold=np.log(1e-3),
     max_num_solutions=50,
+    mip_method="auto",
 ):
     # compute all best expansions
     best_expansions = computeBestExpansions(
@@ -404,6 +431,7 @@ def computeAllExpansionsAdv(
         num_cores,
         report_progress,
         use_ray,
+        mip_method=mip_method,
     )
 
     # compute the maximum likely solution
@@ -425,7 +453,7 @@ def computeAllExpansionsAdv(
     truncation_mask = individualBestCumLogProbs < cutOff
     pruned_clusters = np.sum(truncation_mask)
 
-    print(f"Possible pruned clusters: {pruned_clusters}")
+    logging.info(f"Possible pruned clusters: {pruned_clusters}")
 
     # for the solution pool we must compute the relative gap between the best solution and the worst solution: worst = best + gap * best
     individual_pool_gaps = (
@@ -436,7 +464,7 @@ def computeAllExpansionsAdv(
     pruned_clusters_dist = np.array(current_cluster_dist)[~truncation_mask]
     individual_pool_gaps = individual_pool_gaps[~truncation_mask]
 
-    print(individual_pool_gaps)
+    logging.info(individual_pool_gaps)
 
     return computeAllExpansions(
         pruned_clusters_dist,
@@ -449,6 +477,7 @@ def computeAllExpansionsAdv(
         cutOff=cutOff,
         max_num_solutions=max_num_solutions,
         individual_pool_gaps=individual_pool_gaps,
+        mip_method=mip_method,
     )
 
 
@@ -463,6 +492,7 @@ def computeAllExpansions(
     individual_pool_gaps,
     cutOff=None,
     max_num_solutions=50,
+    mip_method="auto",
 ):
     new_cluster_candidates_and_weights = []
 
@@ -472,7 +502,7 @@ def computeAllExpansions(
         it = current_cluster_dist
 
         if report_progress:
-            it = tqdm.tqdm(current_cluster_dist)
+            it = tqdm(current_cluster_dist, leave=False)
 
         for i, cluster in enumerate(it):
             new_cluster_candidates_and_weights += simpleExpansion(
@@ -483,6 +513,7 @@ def computeAllExpansions(
                 cutOff,
                 max_num_solutions=max_num_solutions,
                 pool_gap=individual_pool_gaps[i],
+                mip_method=mip_method,
             )
     elif use_ray:
         # prepare ray
@@ -513,7 +544,9 @@ def computeAllExpansions(
         )  # ray.get(new_cluster_candidates_and_weights)
 
         if report_progress:
-            ray_it = tqdm.tqdm(ray_it, total=len(new_cluster_candidates_and_weights))
+            ray_it = tqdm(
+                ray_it, total=len(new_cluster_candidates_and_weights), leave=False
+            )
 
         new_cluster_candidates_and_weights = reduce(lambda a, b: a + b, ray_it)
     else:
@@ -552,6 +585,8 @@ def simpleTracking(
     cutOff=np.log(1e-3),
     max_num_solutions=50,
     saving_interval=500,
+    mip_method="auto",
+    frames=None,
 ):
     """
     df: data frame containing all cell information
@@ -569,9 +604,10 @@ def simpleTracking(
         ray.init(num_cpus=num_cores)
 
     # get the frame list
-    frames = np.concatenate([np.array([-1]), np.unique(df["frame"].to_numpy())])
+    if frames is None:
+        frames = np.unique(df["frame"])
 
-    print("frames", frames)
+    logging.info(f"Frames: {frames}")
 
     # create initial empty cluster with full size and probability 1
     current_cluster_dist = [
@@ -584,26 +620,30 @@ def simpleTracking(
         )
     ]
     next_tracking_id = 1
-    all_clusters = [current_cluster_dist]
+    # all_clusters = [current_cluster_dist]
 
     try:
         # loop over consecutive frames
         for frame_index, (source_frame, target_frame) in enumerate(
-            tqdm.tqdm(zip(frames, frames[1:]), total=len(frames) - 1)
+            tqdm(
+                zip(frames, frames[1:]), total=len(frames) - 1, desc="Perform tracking"
+            )
         ):
-            print("frames", source_frame, target_frame)
+            logging.info(f"Frames: {source_frame} -> {target_frame}")
 
             # find source and target detections
-            sources = df[df["frame"] == source_frame]  # TODO find only trackends
-            targets = df[df["frame"] == target_frame]
+            sources = df[df["frame"] == source_frame].index.to_numpy(
+                dtype=np.int32
+            )  # TODO find only trackends
+            targets = df[df["frame"] == target_frame].index.to_numpy(dtype=np.int32)
 
-            print(f"trackEnds {len(sources)} --> {(len(targets))} detections")
+            logging.info(f"trackEnds {len(sources)} --> {(len(targets))} detections")
 
             new_cluster_candidates_and_weights: list[
                 tuple[SimpleCluster, Probability]
             ] = []
 
-            print("Num clusters", len(current_cluster_dist))
+            logging.info("Num clusters: {len(current_cluster_dist)}")
 
             new_cluster_candidates_and_weights = computeAllExpansionsAdv(
                 current_cluster_dist,
@@ -615,6 +655,7 @@ def simpleTracking(
                 use_ray,
                 truncation_threshold=cutOff,
                 max_num_solutions=max_num_solutions,
+                mip_method=mip_method,
             )
 
             # unpack the new cluster candidates with their resampling weights
@@ -654,7 +695,7 @@ def simpleTracking(
             for i, c in enumerate(current_cluster_dist):
                 c.tracking.id = i
 
-            all_clusters += [current_cluster_dist]
+            # all_clusters += [current_cluster_dist]
 
             for r in reporters:
                 r.report_distribution(current_cluster_dist)
@@ -668,7 +709,7 @@ def simpleTracking(
         for r in reporters:
             r.close()
 
-    return all_clusters
+    return current_cluster_dist
 
 
 def split_pair_filter(
@@ -734,4 +775,4 @@ class SimpleTrackingReporter:
             Path(self.output_folder) / "tracking.json", "w", encoding="utf-8"
         ) as output_file:
             json.dump(data_structure, output_file)
-        print(self.final_cluster.tracking.createIndexTracking().edges)
+        logging.info(self.final_cluster.tracking.createIndexTracking().edges)

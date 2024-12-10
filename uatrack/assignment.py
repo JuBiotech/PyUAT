@@ -3,42 +3,43 @@
 from __future__ import annotations
 
 import itertools
+import logging
+from typing import Any
 
 import numpy as np
 
 
-def filterIndexLists(source_index, target_index, filters):
-    """
-    That is for candidate filtering
+def filter_targets(source_index, target_index, filters):
+    """Filter targets
 
-    source_index
-    target_index: index array SxT, where S is the number of possible sources and T is the number of possible targets
+    Args:
+        source_index (_type_): index array for the sources
+        target_index (_type_): index array of SxT (source, filtered candidates)
+        filters (_type_): filter functions returning boolean arrays for (source_index, target_index)
+
+    Returns:
+        tuple: [source_index, filtered target_index]
     """
+
     num_sources = len(source_index)
     num_targets = target_index.shape[1]
 
-    # todo apply nearest neighbor filter here
     if len(filters) == 0:
-        combined_mask = np.ones((num_sources, num_targets), dtype=np.bool)
-        # combined_mask[:,0] = False
+        # no filters at all
+        combined_mask = np.ones((num_sources, num_targets), dtype=bool)
     else:
+        # apply all filters to the source, index combinations
         stacked_masks = np.array([f(source_index, target_index) for f in filters])
-        # print('stacke mask', stacked_masks.shape)
-        # print(stacked_masks.dtype)
+        # only when all filters aggree use the
         combined_mask = np.all(stacked_masks, axis=0)
-        # print('comb mask', combined_mask.shape)
 
-    # source_index_new = np.repeat(source_index, (num_targets,)).reshape(num_sources * num_targets, -1)[combined_mask.flatten()].reshape((-1, 1))
-    # print(target_index)
-    # print(combined_mask)
-    # print(combined_mask.dtype)
-    # print('target_index', target_index.shape)
+    # pylint: disable=singleton-comparison
+    if np.all(combined_mask == False):
+        logging.warning("Filtered all away!")
+
+    # just keep the valid (source, target) combinations
     mask_array = np.ma.masked_array(target_index, mask=~combined_mask)
-    # print(mask_array)
     target_index_new = mask_array.compressed().reshape((num_sources, -1))
-
-    # print(target_index_new.shape)
-    # print(target_index_new)
 
     return source_index, target_index_new
 
@@ -59,7 +60,29 @@ class SimpleAssignmentGenerator:
     def generate(self, tracking, sources, targets):
         raise NotImplementedError()
 
-    def compute_scores(self, tracking, source_index, target_index):
+    def compute_scores(
+        self,
+        tracking: np.ndarray[Any, np.uint32],
+        source_index: np.ndarray[(Any, 1), np.uint32],
+        target_index: np.ndarray[(Any, Any), np.uint32],
+    ) -> tuple[np.float32, np.ndarray[(Any, Any), np.float32]]:
+        """Compute the scores for all assignments
+
+        Args:
+            tracking (np.ndarray[Any, np.uint32]): index based tracking representation
+            source_index (np.ndarray[(Any, 1), np.uint32]) : sources for the assignemnts
+            target_index (np.ndarray[(Any, Any), np.uint32]): targets for the assignment
+
+        Raises:
+            ValueError: we need models for scoring
+
+        Returns:
+            _type_: sum of scores and a list of individual scores
+        """
+
+        if len(self.models) <= 0:
+            raise ValueError("You need at least one model for scoring assignments")
+
         scores = np.array(
             [m(tracking, source_index, target_index) for m in self.models]
         )
@@ -78,7 +101,7 @@ class SimpleNewAssGenerator(SimpleAssignmentGenerator):
 
         # the target indices are simple the targets but with 2 dimensions
         target_index = np.zeros((len(targets), 1), dtype=np.int32)
-        target_index[:, 0] = targets.index
+        target_index[:, 0] = targets
 
         summed_scores, individual_scores = self.compute_scores(
             tracking, source_index, target_index
@@ -89,7 +112,7 @@ class SimpleNewAssGenerator(SimpleAssignmentGenerator):
             target_index,
             summed_scores,
             individual_scores,
-        )  # np.ones((source_index.shape[0])) * -7
+        )
 
 
 class SimpleEndTrackAssGenerator(SimpleAssignmentGenerator):
@@ -98,24 +121,25 @@ class SimpleEndTrackAssGenerator(SimpleAssignmentGenerator):
     """
 
     def generate(self, tracking, sources, targets) -> tuple:
-        # for new detections the source is -1
+        # for dissappearing cells copy the sources
         source_index = np.zeros((len(sources), 1), dtype=np.int32)
-        source_index[:, 0] = sources.index
+        source_index[:, 0] = sources
 
-        # the target indices are simple the targets but with 2 dimensions
+        # the target index has dim=0 (no connections)
         target_index = np.zeros((len(sources), 0), dtype=np.int32)
-        # target_index[:,0] = targets.index
 
+        # compute the scores
         summed_scores, individual_scores = self.compute_scores(
             tracking, source_index, target_index
         )
 
+        # return all variables
         return (
             source_index,
             target_index,
             summed_scores,
             individual_scores,
-        )  # np.ones((source_index.shape[0])) * -7
+        )
 
 
 class SimpleContinueGenerator(SimpleAssignmentGenerator):
@@ -131,6 +155,7 @@ class SimpleContinueGenerator(SimpleAssignmentGenerator):
 
     def generate(self, tracking, sources, targets):
         if len(sources) == 0:
+            # the case for no sources (e.g. start of the tracking): no continue assignments
             return (
                 np.zeros((0, 0), dtype=np.uint32),
                 np.zeros((0, 0), dtype=np.uint32),
@@ -138,10 +163,12 @@ class SimpleContinueGenerator(SimpleAssignmentGenerator):
                 np.array([], dtype=np.float32),
             )
 
-        source_index = sources.index.to_numpy()
-        target_index = np.tile(targets.index.to_numpy(), (len(sources), 1))
+        # setup index lists
+        source_index = sources
+        # targets are TxSx1
+        target_index = np.tile(targets, (len(sources), 1))
 
-        source_index, target_index = filterIndexLists(
+        source_index, target_index = filter_targets(
             source_index, target_index, self.candidate_filters
         )
 
@@ -178,12 +205,12 @@ class SimpleSplitGenerator(SimpleAssignmentGenerator):
                 np.array([], dtype=np.float32),
             )
 
-        source_index = sources.index.to_numpy()
+        source_index = sources
         # create target matrix
-        target_index = np.tile(np.array(targets.index), (len(sources), 1))
+        target_index = np.tile(np.array(targets), (len(sources), 1))
 
         # apply filters for target indices
-        source_index, target_index = filterIndexLists(
+        source_index, target_index = filter_targets(
             source_index, target_index, self.candidate_filters
         )
 
@@ -191,9 +218,7 @@ class SimpleSplitGenerator(SimpleAssignmentGenerator):
             [list(itertools.combinations(targets, 2)) for targets in target_index]
         )
 
-        source_index = np.repeat(
-            sources.index.to_numpy(), (combinations.shape[1],)
-        ).reshape((-1, 1))
+        source_index = np.repeat(sources, (combinations.shape[1],)).reshape((-1, 1))
         target_index = combinations.reshape((-1, 2))
 
         # filter lists to only appropriate assignments
@@ -201,6 +226,17 @@ class SimpleSplitGenerator(SimpleAssignmentGenerator):
 
         source_index = source_index[mask]
         target_index = target_index[mask]
+
+        # check whether we still have opportunities
+        if len(source_index) == 0 or len(target_index) == 0:
+            # we have no split opportunities
+            print("no splits available!")
+            return (
+                np.zeros((0, 0), dtype=np.uint32),
+                np.zeros((0, 0), dtype=np.uint32),
+                np.array([], dtype=np.float32),
+                np.array([], dtype=np.float32),
+            )
 
         # print(source_index, target_index)
         assert source_index.shape[0] == target_index.shape[0]
