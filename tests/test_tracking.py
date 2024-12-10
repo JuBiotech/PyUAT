@@ -29,11 +29,10 @@ class TestTracking(unittest.TestCase):
                 "https://fz-juelich.sciebo.de/s/Xge7fj56QM5ev7q/download"
             )
 
-    def tracking(self, model="NN"):
+    def tracking(self, model="NN", end_frame=100):
         tracking_file = self.segmentation
 
         subsampling_factor = 1
-        end_frame = 400
 
         overlay, _ = load_data(
             tracking_file, subsampling_factor=subsampling_factor, end_frame=end_frame
