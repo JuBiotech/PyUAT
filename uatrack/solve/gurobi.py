@@ -61,7 +61,7 @@ class SimpleGurobiSolver:
             for ass_sources in sources:
                 if ass_sources.shape[1] == 0:
                     # in case we have no sources
-                    all_masks.append(np.zeros(ass_sources.shape[0], dtype=np.bool))
+                    all_masks.append(np.zeros(ass_sources.shape[0], dtype=bool))
                     continue
 
                 assignment_mask = np.isin(ass_sources, source)
@@ -80,7 +80,7 @@ class SimpleGurobiSolver:
             for ass_targets in targets:
                 if ass_targets.shape[1] == 0:
                     # in case we have no targets
-                    all_masks.append(np.zeros(ass_targets.shape[0], dtype=np.bool))
+                    all_masks.append(np.zeros(ass_targets.shape[0], dtype=bool))
                     continue
 
                 assignment_mask = np.isin(ass_targets, target)
@@ -145,7 +145,7 @@ class SimpleGurobiSolver:
 
         nSolutions = self.m.SolCount
 
-        print(f"Number of solutions: {nSolutions}")
+        logging.info(f"Number of solutions: {nSolutions}")
 
         if self.m.Status == GRB.TIME_LIMIT:
             logging.warning("Time limit reached! Solutions found %d", nSolutions)

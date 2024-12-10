@@ -6,7 +6,7 @@
 
 # Official language image. Look for the different tagged releases at:
 # https://hub.docker.com/r/library/python/tags/
-image: python:3.9
+image: jugit-registry.fz-juelich.de/ibg-1/modsim/imageanalysis/uat/python:3.9
 
 # Change pip's cache directory to be inside the project directory since we can
 # only cache local items.
@@ -19,14 +19,23 @@ stages:
   - deploy
 
 test:
-  image: continuumio/miniconda3
+  image: jugit-registry.fz-juelich.de/ibg-1/modsim/imageanalysis/uat/miniconda3 #continuumio/miniconda3
   stage: test
+  tags:
+    - bigmem
   script:
     - conda install -y python=3.9 gcc -c conda-forge
     - pip install --upgrade pip
-    - pip install .
+    - pip install .[test]
     - pip install tox flake8  # you can also use tox
-    - tox -e py39,flake8
+    - tox -e py39
+    - pip install papermill
+    # create kernel for jupyter notebook
+    - pip install --upgrade pip ipython ipykernel
+    - ipython kernel install --name "python3" --user
+    # test the example notebook
+    - papermill example_simple.ipynb example_simple_exec.ipynb
+    - papermill example_simple_custom.ipynb example_simple_exec.ipynb
   coverage: '/TOTAL.*\s+(\d+%)/'
   artifacts:
     reports:
@@ -42,7 +51,7 @@ run:
     # an alternative approach is to install and run:
     - pip install dist/*
     # run the command here
-    - python -c "import uat"
+    - python -c "import uatrack"
   artifacts:
     paths:
       - dist/*.whl
@@ -73,21 +82,7 @@ upload_package:
     - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token python -m twine upload --repository-url ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi dist/*
     - git remote set-url origin "https://${CI_PUSH_NAME}:${CI_PUSH_TOKEN}@jugit.fz-juelich.de/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}.git"
     - git push -o ci.skip --tags origin HEAD:${CI_COMMIT_REF_NAME}
+    - TWINE_PASSWORD=${PYPI_API_TOKEN} TWINE_USERNAME=__token__ twine upload --repository pypi dist/*
   artifacts:
     paths:
       - dist/
-
-
-
-pages:
-  stage: deploy
-  extends: .deploy_common
-  script:
-    - pip install sphinx sphinx-rtd-theme pint
-    - cd docs ; make html
-    - mv _build/html/ ../public/
-  artifacts:
-    paths:
-      - public
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

@@ -1,8 +1,6 @@
 """Utilizes the MIP wrapper library for solving assignment problems
 """
 
-import logging
-
 import numpy as np
 from mip import BINARY, CBC, Model, maximize, minimize, xsum
 
@@ -24,6 +22,10 @@ class SimpleMIPSolver:
 
         # costs are one-dimensional
         self.costs = np.array(costs).flatten()
+
+        if solver_name == "auto":
+            # let library choose installed optimizer (prefers gurobi)
+            solver_name = ""
 
         m = Model(solver_name=solver_name)
 
@@ -63,7 +65,7 @@ class SimpleMIPSolver:
             for ass_sources in sources:
                 if ass_sources.shape[1] == 0:
                     # in case we have no sources
-                    all_masks.append(np.zeros(ass_sources.shape[0], dtype=np.bool))
+                    all_masks.append(np.zeros(ass_sources.shape[0], dtype=bool))
                     continue
 
                 assignment_mask = np.isin(ass_sources, source)
@@ -83,7 +85,7 @@ class SimpleMIPSolver:
             for ass_targets in targets:
                 if ass_targets.shape[1] == 0:
                     # in case we have no targets
-                    all_masks.append(np.zeros(ass_targets.shape[0], dtype=np.bool))
+                    all_masks.append(np.zeros(ass_targets.shape[0], dtype=bool))
                     continue
 
                 assignment_mask = np.isin(ass_targets, target)
@@ -100,7 +102,8 @@ class SimpleMIPSolver:
     def setCutOff(self, cutOff: float):
         # pylint: disable=unused-argument,no-self-use
         # self.m.Params.cutOff = cutOff
-        logging.warning("Not supported!")
+        # logging.warning("Not supported!")
+        pass
 
     def generateSolution(self, i):
 
@@ -155,6 +158,6 @@ class SimpleMIPSolver:
 
         # self.m.optimize()
         # not yet implemented
-        logging.warning("This is not implemented")
+        # logging.warning("This is not implemented")
         return [self.solve()]
         # return self.generateAllSolutions()
