@@ -30,13 +30,20 @@ We provide a basic example for using the tracking configurations described in ou
 
 We provide an example showing the integration of a new custom model (in that case cell age) into the tracking configuration.
 
+## Local Installation
 
-## Installation
+Install PyUAT from pypi
+
+```bash
+pip install uatrack
+```
+
+## Developer Installation
 
 ```bash
 git clone https://github.com/JuBiotech/PyUAT
 cd PyUAT
-pip install .
+pip install -e .
 ```
 
 ## Local usage
