@@ -8,8 +8,7 @@
 Efficient open-source Python implementation of the Uncertainty-Aware Tracking approach: [https://doi.org/10.1093/bioinformatics/bty776](https://doi.org/10.1093/bioinformatics/bty776)
 
 
-TODO: Add a tracking video (gif here)
-
+![Tracking gif]https://github.com/JuBiotech/PyUAT/blob/images/tracked.gif
 
 ## Usage
 
