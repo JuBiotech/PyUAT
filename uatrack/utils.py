@@ -585,4 +585,12 @@ def load_data(
 
     sub_overlay = Overlay([cont for cont in overlay if cont.id in sub_nodes])
 
+    # correct frame number
+    for cont in overlay:
+        cont.frame = int(np.round(cont.frame / subsampling_factor))
+    for n in tracking_graph.nodes:
+        tracking_graph.nodes[n]["frame"] = int(
+            np.round(tracking_graph.nodes[n]["frame"] / subsampling_factor)
+        )
+
     return sub_overlay, sub_tracking_graph
