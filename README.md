@@ -48,7 +48,7 @@ pip install -e .
 
 ## Local usage
 
-Try our (`example_simple.ipynb`)[example_simple.ipynb] notebook to get started with the tracking.
+Try our [`example_simple.ipynb`](example_simple.ipynb) notebook to get started with the tracking.
 
 
 ## Data Availability
