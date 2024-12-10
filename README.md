@@ -8,7 +8,7 @@
 Efficient open-source Python implementation of the Uncertainty-Aware Tracking approach: [https://doi.org/10.1093/bioinformatics/bty776](https://doi.org/10.1093/bioinformatics/bty776)
 
 
-![Tracking gif]https://github.com/JuBiotech/PyUAT/blob/images/tracked.gif
+![Tracking gif](https://github.com/JuBiotech/PyUAT/blob/images/tracked.gif)
 
 ## Usage
 
@@ -16,7 +16,7 @@ You can either use our colab notebooks for examples for cell tracking or install
 
 ## Installation
 
-bash```
+```bash
 git clone https://github.com/JuBiotech/PyUAT
 cd PyUAT
 pip install .
