@@ -25,6 +25,7 @@ setup(
     extras_require={"gurobi": ["gurobipy>=5.9.3"], "test": test_requirements},
     license="MIT license",
     long_description=readme,
+    long_description_content_type="text/markdown",
     include_package_data=True,
     keywords="uatrack",
     name="uatrack",
