@@ -27,6 +27,7 @@ We provide a basic example for using the tracking configurations described in ou
 <a target="_blank" href="https://colab.research.google.com/github/JuBiotech/PyUAT/blob/publish/example_simple_custom.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
+
 We provide an example showing the integration of a new custom model (in that case cell age) into the tracking configuration.
 
 
