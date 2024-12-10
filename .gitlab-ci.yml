@@ -22,7 +22,7 @@ test:
   image: continuumio/miniconda3
   stage: test
   tags:
-    - largemem
+    - bigmem
   script:
     - conda install -y python=3.9 gcc -c conda-forge
     - pip install --upgrade pip
