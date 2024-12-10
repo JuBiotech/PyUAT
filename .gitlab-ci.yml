@@ -35,6 +35,7 @@ test:
     - ipython kernel install --name "python3" --user
     # test the example notebook
     - papermill example_simple.ipynb example_simple_exec.ipynb
+    - papermill example_simple_custom.ipynb example_simple_exec.ipynb
   coverage: '/TOTAL.*\s+(\d+%)/'
   artifacts:
     reports:
