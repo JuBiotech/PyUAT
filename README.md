@@ -16,7 +16,7 @@ You can either use our colab notebooks for examples for cell tracking or install
 
 ### Basic Example
 
-<a target="_blank" href="https://colab.research.google.com/github/JuBiotech/PyUAT/blob/publish/example_simple.ipynb">
+<a target="_blank" href="https://colab.research.google.com/github/JuBiotech/PyUAT/blob/main/example_simple.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
@@ -24,7 +24,7 @@ We provide a basic example for using the tracking configurations described in ou
 
 ### Customize cell models
 
-<a target="_blank" href="https://colab.research.google.com/github/JuBiotech/PyUAT/blob/publish/example_simple_custom.ipynb">
+<a target="_blank" href="https://colab.research.google.com/github/JuBiotech/PyUAT/blob/main/example_simple_custom.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
