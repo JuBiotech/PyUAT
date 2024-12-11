@@ -1,7 +1,7 @@
 # Python Uncertainty-Aware Tracking (PyUAT)
 
 ![pipeline](https://jugit.fz-juelich.de/IBG-1/ModSim/imageanalysis/uat/badges/main/pipeline.svg)
-![coverage](https://jugit.fz-juelich.de/IBG-1/ModSim/imageanalysis/uat/badges/main/coverage.svg?job=coverage)
+![coverage](https://jugit.fz-juelich.de/IBG-1/ModSim/imageanalysis/uat/badges/main/coverage.svg)
 
 
 
